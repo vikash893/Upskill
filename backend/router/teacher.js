@@ -1,8 +1,8 @@
 const express = require('express');
 const upload = require('../config/multer');
-const authMiddleware = require('../middleware/Authmiddleware');
-const admin = require('../../backend/models/admin');
-const teacher = require('../../backend/models/teacher');
+const authMiddleware = require('../middleware/authMiddleware');
+const admin = require('../models/admin');
+const teacher = require('../models/teacher');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -233,8 +233,8 @@ teacherRouter.get("/teacher/my-courses", authMiddleware, async (req, res) => {
             return res.status(404).json({ error: "Teacher not found" });
         }
 
-        const Course = require("../../backend/models/courses");
-        const Enrollment = require("../../backend/models/enrollment");
+        const Course = require("../models/courses");
+        const Enrollment = require("../models/enrollment");
 
         const allCourses = await Course.find({}).lean();
         const assignedNames = teacherDoc.course_assigned || [];

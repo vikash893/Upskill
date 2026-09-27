@@ -1,9 +1,9 @@
 const express = require("express");
 const upload = require("../config/multer");
 const crypto = require("crypto");
-const courses = require("../../backend/models/courses");
-const authMiddleware = require("../../backend/middleware/authMiddleware");
-const requireRole = require("../../backend/middleware/roleMiddleware");
+const courses = require("../models/courses");
+const authMiddleware = require("../middleware/authMiddleware");
+const requireRole = require("../middleware/roleMiddleware");
 
 const courseRouter = express.Router();
 
