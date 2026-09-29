@@ -168,7 +168,7 @@ export default function TeacherLiveStudio() {
       </div>
 
       {showCreate && (
-        <form onSubmit={handleCreate} style={{ padding: '25px', border: '1px solid var(--line)', background: '#fffdf8', marginBottom: '30px', display: 'grid', gap: '15px' }}>
+        <form onSubmit={handleCreate} style={{ padding: '25px', border: '1px solid var(--line)', background: '#FFFFFF', marginBottom: '30px', display: 'grid', gap: '15px' }}>
           <p className="eyebrow">SCHEDULE NEW LIVE BROADCAST</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '15px' }}>
             <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)' }}>
@@ -212,7 +212,7 @@ export default function TeacherLiveStudio() {
 
       {/* Recording playback modal */}
       {selectedPlaybackClass && (
-        <div style={{ padding: '20px', border: '1px solid var(--orange)', background: '#fffdf8', marginBottom: '25px' }}>
+        <div style={{ padding: '20px', border: '1px solid var(--orange)', background: '#FFFFFF', marginBottom: '25px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <div>
               <span className="badge" style={{ position: 'static', background: 'var(--orange)', color: 'white' }}>PLAYBACK ARCHIVE</span>
@@ -256,7 +256,7 @@ export default function TeacherLiveStudio() {
                 className="stat-card-clean"
                 style={{
                   border: isLive ? '2px solid var(--orange)' : '1px solid var(--line)',
-                  background: isLive ? '#fff9f4' : '#fffdf8',
+                  background: isLive ? '#fff9f4' : '#FFFFFF',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',

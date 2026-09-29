@@ -5,10 +5,60 @@ const Course = require("../models/courses");
 const Teacher = require("../models/teacher");
 const User = require("../models/user");
 const Enrollment = require("../models/enrollment");
+const LiveAttendance = require("../models/liveAttendance");
 const authMiddleware = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
+const { liveClassRateLimit } = require("../middleware/rateLimit");
+const {
+    isEnrolled,
+    getLiveClassSnapshot,
+    getStudentDisplayName,
+    invalidateLiveClassSnapshot,
+    joinLiveClass,
+    leaveLiveClass
+} = require("../services/liveAttendance");
 
 const liveClassRouter = express.Router();
+
+function buildAttendancePipeline(classId, courseId, { skip, limit } = {}) {
+    const pipeline = [
+        { $match: { course_id: courseId, status: "active" } },
+        { $sort: { student_email: 1 } },
+        {
+            $lookup: {
+                from: LiveAttendance.collection.name,
+                let: { email: { $toLower: "$student_email" } },
+                pipeline: [{
+                    $match: {
+                        $expr: {
+                            $and: [
+                                { $eq: ["$class_id", classId] },
+                                { $eq: ["$student_email", "$$email"] }
+                            ]
+                        }
+                    }
+                }, { $limit: 1 }],
+                as: "class_attendance"
+            }
+        },
+        { $addFields: { attendance_record: { $arrayElemAt: ["$class_attendance", 0] } } },
+        {
+            $project: {
+                _id: 0,
+                student_email: 1,
+                student_name: { $ifNull: ["$attendance_record.student_name", "$student_name"] },
+                status: { $cond: [{ $ifNull: ["$attendance_record._id", false] }, "Present", "Absent"] },
+                entered_at: "$attendance_record.entered_at",
+                left_at: "$attendance_record.left_at",
+                duration_minutes: { $ifNull: ["$attendance_record.duration_minutes", 0] }
+            }
+        }
+    ];
+
+    if (typeof skip === "number") pipeline.push({ $skip: skip });
+    if (typeof limit === "number") pipeline.push({ $limit: limit });
+    return pipeline;
+}
 
 async function isTeacherAssigned(teacherEmail, course_id) {
     const teacher = await Teacher.findOne({ email: teacherEmail });
@@ -105,7 +155,22 @@ liveClassRouter.get("/live-class/course/:course_id", authMiddleware, async (req,
             }
         }
 
-        const liveClasses = await LiveClass.find({ course_id }).sort({ createdAt: -1 });
+        const liveClasses = await LiveClass.find({ course_id }).sort({ createdAt: -1 }).lean();
+
+        if (userRole === "STUDENT" && liveClasses.length > 0) {
+            const attendanceRecords = await LiveAttendance.find({
+                class_id: { $in: liveClasses.map(liveClass => liveClass.class_id) },
+                student_email: userEmail.toLowerCase()
+            }).lean();
+            const attendanceByClass = new Map(attendanceRecords.map(record => [record.class_id, record]));
+
+            for (const liveClass of liveClasses) {
+                const attendance = attendanceByClass.get(liveClass.class_id);
+                liveClass.attendance = attendance
+                    ? [attendance]
+                    : (liveClass.attendance || []).filter(record => record.student_email.toLowerCase() === userEmail.toLowerCase());
+            }
+        }
 
         return res.status(200).json({
             total: liveClasses.length,
@@ -159,41 +224,26 @@ liveClassRouter.patch(
 // ======================================================
 // STUDENT JOIN LIVE CLASS (TRACK ENTRY ATTENDANCE)
 // ======================================================
-liveClassRouter.post("/live-class/join/:class_id", authMiddleware, async (req, res) => {
+liveClassRouter.post("/live-class/join/:class_id", authMiddleware, liveClassRateLimit, async (req, res) => {
     try {
         const { class_id } = req.params;
         const studentEmail = req.user.email;
 
-        const liveClass = await LiveClass.findOne({ class_id });
+        const liveClass = await getLiveClassSnapshot(class_id);
         if (!liveClass) {
             return res.status(404).json({ error: "Live class not found" });
         }
 
         // Check enrollment
-        const enrollment = await Enrollment.findOne({ student_email: studentEmail, course_id: liveClass.course_id, status: "active" });
-        if (!enrollment && req.user.role !== "ADMIN" && req.user.role !== "TEACHER") {
+        const enrolled = req.user.role === "ADMIN" || req.user.role === "TEACHER"
+            ? true
+            : await isEnrolled(studentEmail, liveClass.course_id);
+        if (!enrolled) {
             return res.status(403).json({ error: "You are not enrolled in this course" });
         }
 
-        const user = await User.findOne({ email: studentEmail });
-        const studentName = user?.name || studentEmail;
-
-        const existingAtt = liveClass.attendance.find(a => a.student_email === studentEmail);
-        if (existingAtt) {
-            // Re-joining or continuing
-            existingAtt.left_at = null;
-        } else {
-            liveClass.attendance.push({
-                student_email: studentEmail,
-                student_name: studentName,
-                entered_at: new Date(),
-                left_at: null,
-                duration_minutes: 0,
-                status: "present"
-            });
-        }
-
-        await liveClass.save();
+        const studentName = await getStudentDisplayName(studentEmail, req.user.name);
+        await joinLiveClass({ classId: class_id, studentEmail, studentName });
 
         return res.status(200).json({
             message: "Joined live class successfully",
@@ -210,25 +260,17 @@ liveClassRouter.post("/live-class/join/:class_id", authMiddleware, async (req, r
 // ======================================================
 // STUDENT LEAVE LIVE CLASS (TRACK EXIT & DURATION)
 // ======================================================
-liveClassRouter.post("/live-class/leave/:class_id", authMiddleware, async (req, res) => {
+liveClassRouter.post("/live-class/leave/:class_id", authMiddleware, liveClassRateLimit, async (req, res) => {
     try {
         const { class_id } = req.params;
         const studentEmail = req.user.email;
 
-        const liveClass = await LiveClass.findOne({ class_id });
+        const liveClass = await getLiveClassSnapshot(class_id);
         if (!liveClass) {
             return res.status(404).json({ error: "Live class not found" });
         }
 
-        const att = liveClass.attendance.find(a => a.student_email === studentEmail);
-        if (att) {
-            att.left_at = new Date();
-            if (att.entered_at) {
-                const diffMs = att.left_at.getTime() - new Date(att.entered_at).getTime();
-                att.duration_minutes = Math.round(diffMs / 60000);
-            }
-            await liveClass.save();
-        }
+        await leaveLiveClass({ classId: class_id, studentEmail });
 
         return res.status(200).json({ message: "Left live class, attendance duration recorded" });
     } catch (error) {
@@ -249,31 +291,18 @@ liveClassRouter.get("/live-class/attendance/:class_id", authMiddleware, requireR
         }
 
         // Get all enrolled students in the course
-        const allEnrolled = await Enrollment.find({ course_id: liveClass.course_id, status: "active" });
-
-        const presentList = liveClass.attendance.map(a => ({
-            student_email: a.student_email,
-            student_name: a.student_name,
-            status: "Present",
-            entered_at: a.entered_at,
-            left_at: a.left_at,
-            duration_minutes: a.duration_minutes || (a.entered_at ? Math.round((new Date().getTime() - new Date(a.entered_at).getTime()) / 60000) : 0)
-        }));
-
-        const presentEmails = new Set(liveClass.attendance.map(a => a.student_email.toLowerCase()));
-
-        const absentList = allEnrolled
-            .filter(e => !presentEmails.has(e.student_email.toLowerCase()))
-            .map(e => ({
-                student_email: e.student_email,
-                student_name: e.student_name,
-                status: "Absent",
-                entered_at: null,
-                left_at: null,
-                duration_minutes: 0
-            }));
-
-        const fullAttendance = [...presentList, ...absentList];
+        const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+        const pageSize = Math.min(500, Math.max(1, Number.parseInt(req.query.limit, 10) || 100));
+        const [totalEnrolled, presentCount, attendance] = await Promise.all([
+            Enrollment.countDocuments({ course_id: liveClass.course_id, status: "active" }),
+            LiveAttendance.countDocuments({ class_id }),
+            Enrollment.aggregate(buildAttendancePipeline(class_id, liveClass.course_id, {
+                skip: (page - 1) * pageSize,
+                limit: pageSize
+            }))
+        ]);
+        const totalPresent = Math.min(totalEnrolled, presentCount);
+        const totalAbsent = Math.max(0, totalEnrolled - totalPresent);
 
         return res.status(200).json({
             class_id: liveClass.class_id,
@@ -282,10 +311,13 @@ liveClassRouter.get("/live-class/attendance/:class_id", authMiddleware, requireR
             scheduled_time: liveClass.scheduled_time,
             started_at: liveClass.started_at,
             ended_at: liveClass.ended_at,
-            total_enrolled: allEnrolled.length,
-            total_present: presentList.length,
-            total_absent: absentList.length,
-            attendance: fullAttendance
+            total_enrolled: totalEnrolled,
+            total_present: totalPresent,
+            total_absent: totalAbsent,
+            page,
+            page_size: pageSize,
+            total_pages: Math.ceil(totalEnrolled / pageSize),
+            attendance
         });
     } catch (error) {
         console.log("GET ATTENDANCE ERROR:", error);

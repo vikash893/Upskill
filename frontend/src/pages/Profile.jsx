@@ -198,7 +198,7 @@ export default function Profile() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '30px', alignItems: 'start' }}>
           {/* Left Column: Profile Info & Form */}
           <div>
-            <div style={{ padding: '30px', border: '1px solid var(--line)', background: '#fffdf8', marginBottom: '25px' }}>
+            <div style={{ padding: '30px', border: '1px solid var(--line)', background: '#FFFFFF', marginBottom: '25px' }}>
               
               {/* Avatar Showcase */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '24px', paddingBottom: '20px', borderBottom: '1px solid var(--line)' }}>
@@ -263,7 +263,7 @@ export default function Profile() {
                       required
                       value={form.name}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      style={{ padding: '12px', border: '1px solid var(--line)', background: '#fffdf8' }}
+                      style={{ padding: '12px', border: '1px solid var(--line)', background: '#FFFFFF' }}
                     />
                   </label>
                   <label style={{ display: 'grid', gap: '6px', color: 'var(--muted)', fontSize: '11px' }}>
@@ -272,7 +272,7 @@ export default function Profile() {
                       required
                       value={form.phone}
                       onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                      style={{ padding: '12px', border: '1px solid var(--line)', background: '#fffdf8' }}
+                      style={{ padding: '12px', border: '1px solid var(--line)', background: '#FFFFFF' }}
                     />
                   </label>
                   <label style={{ display: 'grid', gap: '6px', color: 'var(--muted)', fontSize: '11px' }}>
@@ -381,7 +381,7 @@ export default function Profile() {
               </div>
 
               {/* ADMIN ONLY: Terms & Conditions and Privacy Policy Editor */}
-              <div style={{ padding: '30px', border: '1px solid var(--line)', background: '#fffdf8', marginTop: '25px' }}>
+              <div style={{ padding: '30px', border: '1px solid var(--line)', background: '#FFFFFF', marginTop: '25px' }}>
                 <p className="eyebrow" style={{ color: 'var(--orange)', marginBottom: '8px' }}>LEGAL & AUDIT POLICY</p>
                 <h3 style={{ fontSize: '20px', margin: '0 0 10px' }}>Terms & Privacy Policy Editor</h3>
                 <p style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: 1.6, marginBottom: '20px' }}>
@@ -429,7 +429,7 @@ export default function Profile() {
               </div>
               </>
             ) : (
-              <div style={{ padding: '30px', border: '1px solid var(--line)', background: '#fffdf8' }}>
+              <div style={{ padding: '30px', border: '1px solid var(--line)', background: '#FFFFFF' }}>
                 <p className="eyebrow" style={{ marginBottom: '15px' }}>ACADEMIC STATUS</p>
                 <div style={{ display: 'grid', gap: '12px', fontSize: '13px' }}>
                   <div style={{ padding: '12px', background: '#f8f6f0', border: '1px solid var(--line)' }}>

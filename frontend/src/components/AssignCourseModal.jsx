@@ -77,7 +77,7 @@ export default function AssignCourseModal({ teacher, onClose, onUpdated }) {
                       gap: '12px',
                       padding: '12px 14px',
                       border: isSelected ? '1px solid var(--orange)' : '1px solid var(--line)',
-                      background: isSelected ? '#fff9f5' : '#fffdf8',
+                      background: isSelected ? '#fff9f5' : '#FFFFFF',
                       cursor: 'pointer',
                     }}
                   >

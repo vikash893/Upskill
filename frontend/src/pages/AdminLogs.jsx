@@ -68,7 +68,7 @@ export default function AdminLogs() {
           placeholder="Filter by user email or path..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ width: '100%', maxWidth: '400px', padding: '12px', border: '1px solid var(--line)', background: '#fffdf8', outlineColor: 'var(--orange)', marginBottom: '20px' }}
+          style={{ width: '100%', maxWidth: '400px', padding: '12px', border: '1px solid var(--line)', background: '#FFFFFF', outlineColor: 'var(--orange)', marginBottom: '20px' }}
         />
 
         {loading ? (
@@ -77,7 +77,7 @@ export default function AdminLogs() {
           <div className="empty-state">No activity logs found.</div>
         ) : (
           <>
-            <div style={{ border: '1px solid var(--line)', background: '#fffdf8', overflowX: 'auto' }}>
+            <div style={{ border: '1px solid var(--line)', background: '#FFFFFF', overflowX: 'auto' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '70px 1.2fr 1.4fr 90px 1.4fr 120px 80px 1.1fr', gap: '8px', padding: '12px 16px', borderBottom: '1px solid var(--line)', font: '10px var(--mono)', color: 'var(--muted)' }}>
                 <span>METHOD</span>
                 <span>PERSON NAME</span>

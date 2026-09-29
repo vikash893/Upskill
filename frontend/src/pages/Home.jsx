@@ -149,7 +149,7 @@ export default function Home({ onAuthOpen }) {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '22px' }}>
-          <div style={{ padding: '30px', background: '#fffdf8', border: '1px solid var(--line)' }}>
+          <div style={{ padding: '30px', background: '#FFFFFF', border: '1px solid var(--line)' }}>
             <span style={{ fontSize: '24px', display: 'block', marginBottom: '14px' }}>🔴</span>
             <h3 style={{ fontSize: '20px', margin: '0 0 8px' }}>Interactive Live Classes</h3>
             <p style={{ color: 'var(--muted)', fontSize: '13px', lineHeight: 1.6, margin: 0 }}>
@@ -157,7 +157,7 @@ export default function Home({ onAuthOpen }) {
             </p>
           </div>
 
-          <div style={{ padding: '30px', background: '#fffdf8', border: '1px solid var(--line)' }}>
+          <div style={{ padding: '30px', background: '#FFFFFF', border: '1px solid var(--line)' }}>
             <span style={{ fontSize: '24px', display: 'block', marginBottom: '14px' }}>🎥</span>
             <h3 style={{ fontSize: '20px', margin: '0 0 8px' }}>Recorded Classes & Notes</h3>
             <p style={{ color: 'var(--muted)', fontSize: '13px', lineHeight: 1.6, margin: 0 }}>
@@ -165,7 +165,7 @@ export default function Home({ onAuthOpen }) {
             </p>
           </div>
 
-          <div style={{ padding: '30px', background: '#fffdf8', border: '1px solid var(--line)' }}>
+          <div style={{ padding: '30px', background: '#FFFFFF', border: '1px solid var(--line)' }}>
             <span style={{ fontSize: '24px', display: 'block', marginBottom: '14px' }}>📝</span>
             <h3 style={{ fontSize: '20px', margin: '0 0 8px' }}>Graded Assignments</h3>
             <p style={{ color: 'var(--muted)', fontSize: '13px', lineHeight: 1.6, margin: 0 }}>
@@ -173,7 +173,7 @@ export default function Home({ onAuthOpen }) {
             </p>
           </div>
 
-          <div style={{ padding: '30px', background: '#fffdf8', border: '1px solid var(--line)' }}>
+          <div style={{ padding: '30px', background: '#FFFFFF', border: '1px solid var(--line)' }}>
             <span style={{ fontSize: '24px', display: 'block', marginBottom: '14px' }}>💳</span>
             <h3 style={{ fontSize: '20px', margin: '0 0 8px' }}>Flexible Monthly / Yearly Plans</h3>
             <p style={{ color: 'var(--muted)', fontSize: '13px', lineHeight: 1.6, margin: 0 }}>
@@ -186,7 +186,7 @@ export default function Home({ onAuthOpen }) {
       {/* ========================================================= */}
       {/* 4. COURSE CATALOGUE */}
       {/* ========================================================= */}
-      <section className="content-section" id="courses" style={{ background: '#eeeade' }}>
+      <section className="content-section" id="courses" style={{ background: '#F0F6FF' }}>
         <div className="section-heading">
           <div>
             <p className="eyebrow">CURATED CATALOGUE</p>
@@ -208,7 +208,7 @@ export default function Home({ onAuthOpen }) {
                 borderRadius: '99px',
                 border: '1px solid',
                 borderColor: selectedCategory === cat ? 'var(--ink)' : 'var(--line)',
-                background: selectedCategory === cat ? 'var(--ink)' : '#fffdf8',
+                background: selectedCategory === cat ? 'var(--ink)' : '#FFFFFF',
                 color: selectedCategory === cat ? 'var(--paper)' : 'var(--ink)',
                 fontSize: '12px',
                 fontWeight: 600,
@@ -253,7 +253,7 @@ export default function Home({ onAuthOpen }) {
             { step: '03', title: 'Submit & Build', desc: 'Upload assignment files and receive direct evaluations from your instructor.' },
             { step: '04', title: 'Graduate & Advance', desc: 'Earn verified credentials and portfolio proof to showcase to employers.' },
           ].map((item, idx) => (
-            <div key={idx} style={{ padding: '26px', border: '1px solid var(--line)', background: '#fffdf8', position: 'relative' }}>
+            <div key={idx} style={{ padding: '26px', border: '1px solid var(--line)', background: '#FFFFFF', position: 'relative' }}>
               <span style={{ font: '32px var(--mono)', color: 'var(--orange)', display: 'block', marginBottom: '12px', fontWeight: 800 }}>
                 {item.step}
               </span>
@@ -285,7 +285,7 @@ export default function Home({ onAuthOpen }) {
               <div style={{ color: 'var(--lime)', fontSize: '14px', marginBottom: '8px' }}>
                 {'★'.repeat(t.rating)}
               </div>
-              <p style={{ fontSize: '13px', color: '#f4f1e9', lineHeight: 1.6, fontStyle: 'italic', margin: '0 0 14px' }}>
+              <p style={{ fontSize: '13px', color: '#F0F6FF', lineHeight: 1.6, fontStyle: 'italic', margin: '0 0 14px' }}>
                 "{t.quote}"
               </p>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -303,7 +303,7 @@ export default function Home({ onAuthOpen }) {
       {/* ========================================================= */}
       {/* 7. FAQ ACCORDION */}
       {/* ========================================================= */}
-      <section className="content-section" style={{ background: '#fffdf8' }}>
+      <section className="content-section" style={{ background: '#FFFFFF' }}>
         <div className="section-heading">
           <div>
             <p className="eyebrow">QUESTIONS & CLARIFICATIONS</p>

@@ -59,7 +59,7 @@ export default function AdminUsers() {
           onChange={(e) => setSearch(e.target.value)}
           style={{
             width: '100%', maxWidth: '400px', padding: '12px', border: '1px solid var(--line)',
-            background: '#fffdf8', outlineColor: 'var(--orange)', fontFamily: 'inherit', marginBottom: '25px',
+            background: '#FFFFFF', outlineColor: 'var(--orange)', fontFamily: 'inherit', marginBottom: '25px',
           }}
         />
 
@@ -68,7 +68,7 @@ export default function AdminUsers() {
         ) : filtered.length === 0 ? (
           <div className="empty-state">{search ? 'No users match your search.' : 'No users registered yet.'}</div>
         ) : (
-          <div style={{ border: '1px solid var(--line)', background: '#fffdf8' }}>
+          <div style={{ border: '1px solid var(--line)', background: '#FFFFFF' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 1.2fr 0.8fr auto', gap: '12px', padding: '12px 18px', borderBottom: '1px solid var(--line)', fontSize: '10px', color: 'var(--muted)', fontFamily: 'var(--mono)' }}>
               <span></span><span>NAME</span><span>EMAIL</span><span>PHONE</span><span>ACTION</span>
             </div>

@@ -67,7 +67,7 @@ export default function AdminLogin() {
               placeholder="admin@uniskill.in"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              style={{ padding: '12px', border: '1px solid var(--line)', background: '#fffdf8' }}
+              style={{ padding: '12px', border: '1px solid var(--line)', background: '#FFFFFF' }}
             />
           </label>
 
@@ -79,7 +79,7 @@ export default function AdminLogin() {
               placeholder="••••••••"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
-              style={{ padding: '12px', border: '1px solid var(--line)', background: '#fffdf8' }}
+              style={{ padding: '12px', border: '1px solid var(--line)', background: '#FFFFFF' }}
             />
           </label>
 

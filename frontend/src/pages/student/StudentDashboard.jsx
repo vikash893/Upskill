@@ -157,11 +157,11 @@ export default function StudentDashboard() {
       {/* Primary KPI Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '18px', marginBottom: '35px' }}>
         <div className="stat-card-clean" style={{ background: 'var(--orange)', color: 'white', borderColor: 'var(--orange)' }}>
-          <span style={{ font: '10px var(--mono)', color: '#ffe0bd' }}>ENROLLED COURSES</span>
+          <span style={{ font: '10px var(--mono)', color: 'rgba(255,255,255,.8)' }}>ENROLLED COURSES</span>
           <strong style={{ display: 'block', fontSize: '42px', margin: '18px 0 8px', letterSpacing: '-2px' }}>
             {myCourses.length < 10 ? `0${myCourses.length}` : myCourses.length}
           </strong>
-          <small style={{ color: '#fff0d8', fontSize: '11px' }}>active in your library</small>
+          <small style={{ color: '#FFFFFF', fontSize: '11px' }}>active in your library</small>
         </div>
 
         <div className="stat-card-clean">
@@ -188,7 +188,7 @@ export default function StudentDashboard() {
         <div
           style={{
             padding: '20px 24px',
-            background: upcomingLiveClass.status === 'live' ? '#fff4ed' : '#fffdf8',
+            background: upcomingLiveClass.status === 'live' ? '#fff4ed' : '#FFFFFF',
             border: upcomingLiveClass.status === 'live' ? '2px solid var(--orange)' : '1px solid var(--line)',
             marginBottom: '35px',
             display: 'flex',

@@ -5,7 +5,8 @@ const paymentSchema = new mongoose.Schema(
         payment_id: {
             type: String,
             required: true,
-            unique: true
+            unique: true,
+            index: true
         },
         student_id: {
             type: mongoose.Schema.Types.ObjectId,
@@ -17,11 +18,13 @@ const paymentSchema = new mongoose.Schema(
         },
         student_email: {
             type: String,
-            required: true
+            required: true,
+            index: true
         },
         course_id: {
             type: String,
-            required: true
+            required: true,
+            index: true
         },
         course_title: {
             type: String,
@@ -47,16 +50,34 @@ const paymentSchema = new mongoose.Schema(
             type: Number,
             required: true
         },
+        currency: {
+            type: String,
+            default: "INR"
+        },
         plan_type: {
             type: String,
-            enum: ["monthly", "yearly", "one_time", "lifetime"],
+            enum: ["monthly", "yearly", "one_time", "lifetime", "free"],
             default: "monthly"
         },
         plan_expiry: {
             type: Date,
             default: null
         },
-        receipt_photo: {
+        payment_gateway: {
+            type: String,
+            default: "RAZORPAY"
+        },
+        razorpay_order_id: {
+            type: String,
+            default: null,
+            index: true
+        },
+        razorpay_payment_id: {
+            type: String,
+            default: null,
+            index: true
+        },
+        razorpay_signature: {
             type: String,
             default: null
         },
@@ -66,8 +87,9 @@ const paymentSchema = new mongoose.Schema(
         },
         status: {
             type: String,
-            enum: ["pending", "approved", "rejected", "cancelled"],
-            default: "pending"
+            enum: ["approved", "pending", "failed", "cancelled", "refunded", "rejected"],
+            default: "approved",
+            index: true
         },
         cancellation_reason: {
             type: String,
@@ -79,10 +101,14 @@ const paymentSchema = new mongoose.Schema(
         },
         approved_by: {
             type: String,
-            default: null
+            default: "RAZORPAY_GATEWAY"
         },
         approved_at: {
             type: Date,
+            default: Date.now
+        },
+        receipt_photo: {
+            type: String,
             default: null
         }
     },
@@ -90,5 +116,8 @@ const paymentSchema = new mongoose.Schema(
         timestamps: true
     }
 );
+
+paymentSchema.index({ student_email: 1, course_id: 1 });
+paymentSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("Payment", paymentSchema);

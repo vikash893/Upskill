@@ -75,7 +75,7 @@ export default function AdminPayments() {
 
         {/* Stats Strip */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '30px' }}>
-          <div style={{ padding: '20px', border: '1px solid var(--line)', background: '#fffdf8' }}>
+          <div style={{ padding: '20px', border: '1px solid var(--line)', background: '#FFFFFF' }}>
             <span style={{ font: '10px var(--mono)', color: 'var(--muted)' }}>TOTAL REVENUE</span>
             <strong style={{ display: 'block', fontSize: '32px', color: 'var(--orange)', margin: '8px 0 0' }}>₹{totalApprovedAmount}</strong>
             <small style={{ color: 'var(--muted)', fontSize: '11px' }}>from approved payments</small>
@@ -85,7 +85,7 @@ export default function AdminPayments() {
             <strong style={{ display: 'block', fontSize: '32px', color: '#c2410c', margin: '8px 0 0' }}>{pendingCount}</strong>
             <small style={{ color: 'var(--muted)', fontSize: '11px' }}>awaiting receipt verification</small>
           </div>
-          <div style={{ padding: '20px', border: '1px solid var(--line)', background: '#fffdf8' }}>
+          <div style={{ padding: '20px', border: '1px solid var(--line)', background: '#FFFFFF' }}>
             <span style={{ font: '10px var(--mono)', color: 'var(--muted)' }}>TOTAL RECORDS</span>
             <strong style={{ display: 'block', fontSize: '32px', margin: '8px 0 0' }}>{payments.length}</strong>
             <small style={{ color: 'var(--muted)', fontSize: '11px' }}>including cancelled checkouts</small>
@@ -106,7 +106,7 @@ export default function AdminPayments() {
                 borderRadius: '99px',
                 border: '1px solid',
                 borderColor: statusFilter === st ? 'var(--ink)' : 'var(--line)',
-                background: statusFilter === st ? 'var(--ink)' : '#fffdf8',
+                background: statusFilter === st ? 'var(--ink)' : '#FFFFFF',
                 color: statusFilter === st ? 'var(--paper)' : 'var(--ink)',
                 fontSize: '11px',
                 textTransform: 'capitalize',
@@ -135,7 +135,7 @@ export default function AdminPayments() {
                 <div
                   key={p.payment_id}
                   style={{
-                    background: isCancelled ? '#f9f9f9' : '#fffdf8',
+                    background: isCancelled ? '#f9f9f9' : '#FFFFFF',
                     border: p.status === 'pending' ? '2px solid var(--orange)' : '1px solid var(--line)',
                     padding: '20px',
                     display: 'grid',
@@ -151,7 +151,7 @@ export default function AdminPayments() {
                         <img src={receiptImg} alt="Receipt" style={{ width: '80px', height: '80px', objectFit: 'cover', border: '1px solid var(--line)', borderRadius: '4px' }} />
                       </a>
                     ) : (
-                      <div style={{ width: '80px', height: '80px', background: '#eeeade', display: 'grid', placeContent: 'center', fontSize: '9px', font: 'var(--mono)', textAlign: 'center' }}>
+                      <div style={{ width: '80px', height: '80px', background: '#F0F6FF', display: 'grid', placeContent: 'center', fontSize: '9px', font: 'var(--mono)', textAlign: 'center' }}>
                         {isCancelled ? 'CANCELLED' : 'NO RECEIPT'}
                       </div>
                     )}

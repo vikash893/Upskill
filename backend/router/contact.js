@@ -5,12 +5,14 @@ const Course = require('../models/courses');
 const User = require('../models/user');
 const Teacher = require('../models/teacher');
 const LiveClass = require('../models/liveClass');
-const Logger = require('../models/logger');
 const authMiddleware = require('../middleware/authMiddleware');
 const requireRole = require('../middleware/roleMiddleware');
+const { contactRateLimit } = require('../middleware/rateLimit');
+const { getCache, setCache } = require('../config/redis');
+const { publishKafkaEvent, getAuditLogTopic } = require('../config/kafka');
 
-// 1. PUBLIC: Submit contact form query
-router.post('/contact/submit', async (req, res) => {
+// 1. PUBLIC: Submit contact form query (Rate Limited)
+router.post('/contact/submit', contactRateLimit, async (req, res) => {
   try {
     const { name, email, phone, subject, category, message } = req.body;
 
@@ -29,22 +31,19 @@ router.post('/contact/submit', async (req, res) => {
       category: category || 'General Query',
       message: message.trim(),
       status: 'unread',
-      ip_address: req.ip || req.connection.remoteAddress || '',
+      ip_address: req.ip || req.socket.remoteAddress || '',
     });
 
     await newContact.save();
 
-    // Log the contact inquiry in audit logs
-    try {
-      await Logger.create({
-        admin_email: 'system',
-        action: `Contact Query received from ${name} (${email}): "${subject}"`,
-        method: 'POST',
-        endpoint: '/api/contact/submit',
-      });
-    } catch (e) {
-      // Non-blocking log failure
-    }
+    publishKafkaEvent(getAuditLogTopic(), email, {
+      event_type: 'CONTACT_QUERY_SUBMITTED',
+      name,
+      email,
+      subject,
+      category,
+      created_at: new Date().toISOString()
+    });
 
     return res.status(201).json({
       success: true,
@@ -61,18 +60,29 @@ router.post('/contact/submit', async (req, res) => {
   }
 });
 
-// 2. PUBLIC: Real platform stats directly fetched from database
+// 2. PUBLIC: Real platform stats directly fetched from database with Redis caching
 router.get('/public/platform-stats', async (req, res) => {
   try {
+    const cacheKey = 'cache:platform:stats';
+    const cachedStats = await getCache(cacheKey);
+    if (cachedStats) {
+      return res.status(200).json(cachedStats);
+    }
+
     const [coursesCount, studentsCount, teachersCount, liveClassesCount, realTeachers] = await Promise.all([
       Course.countDocuments(),
       User.countDocuments(),
       Teacher.countDocuments(),
       LiveClass.countDocuments(),
-      Teacher.find({}, 'name email course_assigned phone').limit(8).lean(),
+      Teacher.find({}, 'name email course_assigned phone photo').limit(8).lean(),
     ]);
 
-    return res.status(200).json({
+    const formattedFaculty = (realTeachers || []).map(t => ({
+      ...t,
+      photo: t.photo ? t.photo.replace(/\\/g, '/') : null
+    }));
+
+    const responsePayload = {
       success: true,
       stats: {
         total_courses: coursesCount,
@@ -80,8 +90,12 @@ router.get('/public/platform-stats', async (req, res) => {
         total_teachers: teachersCount,
         total_live_classes: liveClassesCount,
       },
-      faculty: realTeachers || [],
-    });
+      faculty: formattedFaculty,
+    };
+
+    await setCache(cacheKey, responsePayload, 60);
+
+    return res.status(200).json(responsePayload);
   } catch (error) {
     console.error('Platform stats error:', error);
     return res.status(500).json({

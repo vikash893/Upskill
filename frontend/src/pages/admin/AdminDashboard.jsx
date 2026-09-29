@@ -76,14 +76,14 @@ export default function AdminDashboard() {
       {/* KPI Stats Strip */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '35px' }}>
         <div className="stat-card-clean" style={{ background: 'var(--orange)', color: 'white', borderColor: 'var(--orange)' }}>
-          <span style={{ font: '10px var(--mono)', color: '#ffe0bd' }}>TOTAL REVENUE</span>
+          <span style={{ font: '10px var(--mono)', color: 'rgba(255,255,255,.8)' }}>TOTAL REVENUE</span>
           <strong style={{ display: 'block', fontSize: '38px', margin: '14px 0 6px', letterSpacing: '-2px' }}>
             ₹{totalRevenue}
           </strong>
-          <small style={{ color: '#fff0d8', fontSize: '11px' }}>from approved course payments</small>
+          <small style={{ color: '#FFFFFF', fontSize: '11px' }}>from approved course payments</small>
         </div>
 
-        <div className="stat-card-clean" style={{ background: pendingPayments.length > 0 ? '#fff7ed' : '#fffdf8', borderColor: pendingPayments.length > 0 ? '#fed7aa' : 'var(--line)' }}>
+        <div className="stat-card-clean" style={{ background: pendingPayments.length > 0 ? '#fff7ed' : '#FFFFFF', borderColor: pendingPayments.length > 0 ? '#fed7aa' : 'var(--line)' }}>
           <span style={{ font: '10px var(--mono)', color: pendingPayments.length > 0 ? '#c2410c' : 'var(--muted)' }}>
             PENDING APPROVALS
           </span>
@@ -120,7 +120,7 @@ export default function AdminDashboard() {
         <div
           className="stat-card-clean"
           style={{
-            background: unreadInquiries > 0 ? '#fef2f2' : '#fffdf8',
+            background: unreadInquiries > 0 ? '#fef2f2' : '#FFFFFF',
             borderColor: unreadInquiries > 0 ? '#fca5a5' : 'var(--line)',
             cursor: 'pointer',
           }}
@@ -180,7 +180,7 @@ export default function AdminDashboard() {
                         <img src={receiptImg} alt="Receipt" style={{ width: '60px', height: '60px', objectFit: 'cover', border: '1px solid var(--line)', borderRadius: '4px' }} />
                       </a>
                     ) : (
-                      <div style={{ width: '60px', height: '60px', background: '#eeeade' }} />
+                      <div style={{ width: '60px', height: '60px', background: '#F0F6FF' }} />
                     )}
 
                     <div>

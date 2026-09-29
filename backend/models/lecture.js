@@ -5,11 +5,13 @@ const lectureSchema = new mongoose.Schema(
         lecture_id: {
             type: String,
             required: true,
-            unique: true
+            unique: true,
+            index: true
         },
         course_id: {
             type: String,
-            required: true
+            required: true,
+            index: true
         },
         course_title: {
             type: String,
@@ -17,7 +19,8 @@ const lectureSchema = new mongoose.Schema(
         },
         teacher_email: {
             type: String,
-            required: true
+            required: true,
+            index: true
         },
         teacher_name: {
             type: String,
@@ -52,5 +55,7 @@ const lectureSchema = new mongoose.Schema(
         timestamps: true
     }
 );
+
+lectureSchema.index({ course_id: 1, order: 1 });
 
 module.exports = mongoose.model("Lecture", lectureSchema);

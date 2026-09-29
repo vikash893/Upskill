@@ -78,7 +78,7 @@ export default function Contact() {
       </section>
 
       {/* QUICK CONTACT CHANNELS */}
-      <section className="signal-strip" style={{ background: '#fffdf8' }}>
+      <section className="signal-strip" style={{ background: '#FFFFFF' }}>
         <div><strong>OFFICIAL EMAIL</strong><span>support@uniskill.in</span></div>
         <div><strong>STUDENT HELPDESK</strong><span>+91 98765 43210</span></div>
         <div><strong>WHATSAPP ADVISORY</strong><span>+91 98765 43211</span></div>
@@ -89,7 +89,7 @@ export default function Contact() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '50px', alignItems: 'start' }}>
           
           {/* Left: Interactive Form */}
-          <div style={{ background: '#fffdf8', border: '1px solid var(--line)', padding: '36px' }}>
+          <div style={{ background: '#FFFFFF', border: '1px solid var(--line)', padding: '36px' }}>
             <p className="eyebrow" style={{ marginBottom: '8px' }}>SEND A MESSAGE</p>
             <h2 style={{ fontSize: '28px', letterSpacing: '-1.5px', marginBottom: '8px' }}>
               Direct Inquiry Desk
@@ -209,7 +209,7 @@ export default function Contact() {
 
             <div style={{ display: 'grid', gap: '16px', marginBottom: '30px' }}>
               {supportFaqs.map((faq, idx) => (
-                <div key={idx} style={{ padding: '20px', background: '#fffdf8', border: '1px solid var(--line)' }}>
+                <div key={idx} style={{ padding: '20px', background: '#FFFFFF', border: '1px solid var(--line)' }}>
                   <h3 style={{ fontSize: '15px', margin: '0 0 8px', color: 'var(--ink)' }}>
                     {faq.q}
                   </h3>

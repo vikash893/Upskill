@@ -94,7 +94,7 @@ export default function CourseDetail({ onAuthOpen }) {
             </div>
 
             {/* Course Features Checklist */}
-            <div style={{ padding: '24px', background: '#fffdf8', border: '1px solid var(--line)', marginTop: '20px', borderRadius: '4px' }}>
+            <div style={{ padding: '24px', background: '#FFFFFF', border: '1px solid var(--line)', marginTop: '20px', borderRadius: '4px' }}>
               <p className="eyebrow" style={{ marginBottom: '10px' }}>WHAT'S INCLUDED IN THIS TRACK</p>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '10px', fontSize: '13px', color: '#444' }}>
                 <li>✓ Full access to HD recorded curriculum lectures & updates</li>
@@ -131,7 +131,7 @@ export default function CourseDetail({ onAuthOpen }) {
 
             {/* Plan Selector for Paid Courses */}
             {course.course_type === 'paid' && !isEnrolled && (
-              <div style={{ background: '#fffdf8', border: '1px solid var(--line)', padding: '20px', marginBottom: '25px', borderRadius: '4px' }}>
+              <div style={{ background: '#FFFFFF', border: '1px solid var(--line)', padding: '20px', marginBottom: '25px', borderRadius: '4px' }}>
                 <p className="eyebrow" style={{ marginBottom: '12px' }}>CHOOSE YOUR ACCESS PLAN</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   
@@ -237,7 +237,7 @@ export default function CourseDetail({ onAuthOpen }) {
                   )}
                 </div>
               ) : (
-                <div style={{ padding: '16px', border: '1px solid var(--line)', background: '#fffdf8' }}>
+                <div style={{ padding: '16px', border: '1px solid var(--line)', background: '#FFFFFF' }}>
                   <p style={{ fontSize: '13px', color: 'var(--muted)', margin: '0 0 10px' }}>
                     Logged in as <strong>{session.role}</strong>.
                   </p>

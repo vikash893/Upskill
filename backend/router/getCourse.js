@@ -1,43 +1,33 @@
 const express = require("express");
-const courses = require("../models/courses");
+const Course = require("../models/courses");
+const { getCache, setCache } = require("../config/redis");
 
-const getCourseROuter = express.Router();
-
+const getCourseRouter = express.Router();
 
 // ======================================================
-// EXPLORE ALL COURSES
+// EXPLORE ALL COURSES (HIGH-SPEED REDIS CACHED)
 // ======================================================
-
-getCourseROuter.get(
+getCourseRouter.get(
     "/explore-courses",
     async (req, res) => {
-
         try {
+            const cacheKey = "cache:courses:explore:all";
+            const cachedData = await getCache(cacheKey);
 
-            // ==================================================
-            // GET LOGGED-IN USER
-            // ==================================================
+            if (cachedData) {
+                return res.status(200).json(cachedData);
+            }
 
-            // ==================================================
-            // GET COURSES
-            // ==================================================
-
-            const allCourses = await courses.find({})
+            const allCourses = await Course.find({})
                 .select(
-                    "course_id course_title course_description course_amount monthly_amount yearly_amount pricing_period course_type photo discount discount_time coupon_code coupon_code_time coupon_discount"
+                    "course_id course_title course_description course_amount monthly_amount yearly_amount pricing_period course_type photo discount discount_time coupon_code coupon_code_time coupon_discount createdAt"
                 )
+                .sort({ createdAt: -1 })
                 .lean();
-
-
-            // ==================================================
-            // CALCULATE CURRENT PRICE
-            // ==================================================
 
             const currentDate = new Date();
 
-
             const courseData = allCourses.map((course) => {
-
                 let actualAmount = course.course_amount || 0;
                 let monthlyAmount = course.monthly_amount || (actualAmount > 0 ? actualAmount : 0);
                 let yearlyAmount = course.yearly_amount || (monthlyAmount > 0 ? monthlyAmount * 10 : 0);
@@ -48,11 +38,6 @@ getCourseROuter.get(
                 let finalYearlyAmount = yearlyAmount;
 
                 let discountActive = false;
-
-
-                // ==================================================
-                // CHECK DISCOUNT
-                // ==================================================
 
                 if (
                     course.discount > 0 &&
@@ -65,7 +50,6 @@ getCourseROuter.get(
                     finalMonthlyAmount = Math.max(0, monthlyAmount - (monthlyAmount * course.discount) / 100);
                     finalYearlyAmount = Math.max(0, yearlyAmount - (yearlyAmount * course.discount) / 100);
                 }
-
 
                 return {
                     course_id: course.course_id,
@@ -85,18 +69,16 @@ getCourseROuter.get(
                 };
             });
 
-
-            // ==================================================
-            // RESPONSE
-            // ==================================================
-
-            return res.status(200).json({
+            const responsePayload = {
                 message: "Courses fetched successfully",
                 total_courses: courseData.length,
                 courses: courseData
-            });
+            };
 
+            // Cache in Redis for 120 seconds
+            await setCache(cacheKey, responsePayload, 120);
 
+            return res.status(200).json(responsePayload);
         } catch (error) {
             console.log("EXPLORE COURSE ERROR:", error);
             return res.status(500).json({
@@ -107,14 +89,21 @@ getCourseROuter.get(
 );
 
 // ======================================================
-// GET SINGLE COURSE DETAILS
+// GET SINGLE COURSE DETAILS (REDIS CACHED)
 // ======================================================
-getCourseROuter.get(
+getCourseRouter.get(
     "/course/:course_id",
     async (req, res) => {
         try {
             const { course_id } = req.params;
-            const course = await courses.findOne({ course_id });
+            const cacheKey = `cache:course:${encodeURIComponent(course_id)}`;
+            const cached = await getCache(cacheKey);
+
+            if (cached) {
+                return res.status(200).json(cached);
+            }
+
+            const course = await Course.findOne({ course_id }).lean();
 
             if (!course) {
                 return res.status(404).json({
@@ -145,7 +134,7 @@ getCourseROuter.get(
                 finalYearlyAmount = Math.max(0, yearlyAmount - (yearlyAmount * course.discount) / 100);
             }
 
-            return res.status(200).json({
+            const responsePayload = {
                 message: "Course fetched successfully",
                 course: {
                     course_id: course.course_id,
@@ -168,7 +157,12 @@ getCourseROuter.get(
                         currentDate < new Date(course.coupon_code_time)
                     )
                 }
-            });
+            };
+
+            // Cache in Redis for 120 seconds
+            await setCache(cacheKey, responsePayload, 120);
+
+            return res.status(200).json(responsePayload);
         } catch (error) {
             console.log("GET COURSE ERROR:", error);
             return res.status(500).json({
@@ -181,7 +175,7 @@ getCourseROuter.get(
 // ======================================================
 // VERIFY COUPON CODE
 // ======================================================
-getCourseROuter.post(
+getCourseRouter.post(
     "/verify-coupon/:course_id",
     async (req, res) => {
         try {
@@ -194,7 +188,7 @@ getCourseROuter.post(
                 });
             }
 
-            const course = await courses.findOne({ course_id });
+            const course = await Course.findOne({ course_id });
 
             if (!course) {
                 return res.status(404).json({
@@ -222,7 +216,6 @@ getCourseROuter.post(
                 });
             }
 
-            // Coupon is valid! Calculate discount from the course amount
             const couponDiscount = course.coupon_discount || 0;
             const couponDiscountAmount = (course.course_amount * couponDiscount) / 100;
             const finalAmountWithCoupon = Math.max(0, course.course_amount - couponDiscountAmount);
@@ -235,7 +228,6 @@ getCourseROuter.post(
                 discount_amount: Math.round(couponDiscountAmount),
                 final_amount: Math.round(finalAmountWithCoupon)
             });
-
         } catch (error) {
             console.log("VERIFY COUPON ERROR:", error);
             return res.status(500).json({
@@ -245,4 +237,4 @@ getCourseROuter.post(
     }
 );
 
-module.exports = getCourseROuter;
+module.exports = getCourseRouter;

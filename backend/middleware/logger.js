@@ -1,84 +1,109 @@
 const jwt = require("jsonwebtoken");
 const Logger = require("../models/logger");
-const User = require("../models/user");
-const Teacher = require("../models/teacher");
+const { publishKafkaEvent, getAuditLogTopic } = require("../config/kafka");
 
-const logger = async (req, res, next) => {
+// In-memory batch buffer for high-throughput non-blocking request logging
+const logBuffer = [];
+const BATCH_SIZE = 50;
+const FLUSH_INTERVAL_MS = 2000;
+
+async function flushLogBuffer() {
+    if (logBuffer.length === 0) return;
+    const batch = logBuffer.splice(0, logBuffer.length);
     try {
-        let email = "Guest";
-        let name = "Guest Visitor";
-        let role = "GUEST";
-
-        // Check Authorization header
-        const authHeader = req.headers.authorization;
-        if (authHeader && authHeader.startsWith("Bearer ")) {
-            const token = authHeader.split(" ")[1];
-            try {
-                const decoded = jwt.verify(token, process.env.JWT_SECRET);
-                email = decoded.email || email;
-                role = decoded.role || role;
-
-                if (role === "STUDENT") {
-                    const u = await User.findOne({ email }).lean();
-                    if (u) name = u.name;
-                } else if (role === "TEACHER") {
-                    const t = await Teacher.findOne({ email }).lean();
-                    if (t) name = t.name;
-                } else if (role === "ADMIN") {
-                    name = "Administrator";
-                }
-            } catch (err) {
-                // Token expired or invalid, keep guest or decoded values if possible
-                try {
-                    const decoded = jwt.decode(token);
-                    if (decoded && decoded.email) {
-                        email = decoded.email;
-                        role = decoded.role || role;
-                    }
-                } catch {}
-            }
-        } else if (req.body && req.body.email) {
-            // For login or registration requests
-            email = req.body.email;
-            if (req.body.name) name = req.body.name;
-        }
-
-        // Extract IP address
-        const rawIp =
-            req.headers["x-forwarded-for"] ||
-            req.headers["x-real-ip"] ||
-            req.socket.remoteAddress ||
-            req.ip ||
-            "127.0.0.1";
-
-        const ipAddress = typeof rawIp === "string" ? rawIp.split(",")[0].trim().replace(/^::ffff:/, "") : "127.0.0.1";
-
-        const log = await Logger.create({
-            name: name,
-            email: email,
-            role: role,
-            path: req.originalUrl || req.url,
-            method: req.method,
-            ipAddress: ipAddress,
-            userAgent: req.headers["user-agent"] || "",
-            isActive: true
-        });
-
-        // When response finishes
-        res.on("finish", async () => {
-            try {
-                await Logger.findByIdAndUpdate(log._id, {
-                    statusCode: res.statusCode,
-                    isActive: false
-                });
-            } catch {}
-        });
-
-        next();
-    } catch (error) {
-        console.log("Logger Error:", error);
-        next();
+        await Logger.insertMany(batch, { ordered: false });
+    } catch (err) {
+        console.error("Batch logger write error:", err.message);
     }
+}
+
+// Periodic background flusher
+setInterval(() => {
+    if (logBuffer.length > 0) {
+        flushLogBuffer().catch(() => {});
+    }
+}, FLUSH_INTERVAL_MS).unref();
+
+const logger = (req, res, next) => {
+    const url = req.originalUrl || req.url;
+
+    // Skip static assets, health checks, and preflights to preserve high performance
+    if (
+        req.method === "OPTIONS" ||
+        url.startsWith("/uploads/") ||
+        url.startsWith("/api/health") ||
+        url.includes("favicon.ico")
+    ) {
+        return next();
+    }
+
+    let email = "Guest";
+    let name = "Guest Visitor";
+    let role = "GUEST";
+
+    // Fast non-blocking identity extraction from JWT header
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+        const token = authHeader.split(" ")[1];
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || "uniskill_2026_secret");
+            email = decoded.email || email;
+            role = decoded.role || role;
+            name = decoded.name || (role === "ADMIN" ? "Administrator" : email);
+        } catch {
+            try {
+                const decoded = jwt.decode(token);
+                if (decoded && decoded.email) {
+                    email = decoded.email;
+                    role = decoded.role || role;
+                    name = decoded.name || email;
+                }
+            } catch {}
+        }
+    } else if (req.body && req.body.email) {
+        email = req.body.email;
+        if (req.body.name) name = req.body.name;
+    }
+
+    const rawIp =
+        req.headers["x-forwarded-for"] ||
+        req.headers["x-real-ip"] ||
+        req.socket.remoteAddress ||
+        req.ip ||
+        "127.0.0.1";
+
+    const ipAddress = typeof rawIp === "string" ? rawIp.split(",")[0].trim().replace(/^::ffff:/, "") : "127.0.0.1";
+    const userAgent = req.headers["user-agent"] || "";
+    const method = req.method;
+    const startTime = Date.now();
+
+    // On response completion, queue log entry asynchronously
+    res.on("finish", () => {
+        const logEntry = {
+            name,
+            email,
+            role,
+            path: url,
+            method,
+            ipAddress,
+            userAgent: userAgent.substring(0, 250),
+            statusCode: res.statusCode,
+            visitedAt: new Date(startTime),
+            isActive: false
+        };
+
+        // Try streaming to Kafka first if available
+        const sentToKafka = publishKafkaEvent(getAuditLogTopic(), email, logEntry);
+        if (!sentToKafka) {
+            logBuffer.push(logEntry);
+            if (logBuffer.length >= BATCH_SIZE) {
+                flushLogBuffer().catch(() => {});
+            }
+        }
+    });
+
+    next();
 };
 
 module.exports = logger;
+module.exports.flushLogBuffer = flushLogBuffer;

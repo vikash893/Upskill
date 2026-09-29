@@ -59,7 +59,7 @@ export default function AttendanceModal({ classId, onClose }) {
           <>
             {/* Stats row */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
-              <div style={{ padding: '12px', border: '1px solid var(--line)', background: '#fffdf8', textAlign: 'center' }}>
+              <div style={{ padding: '12px', border: '1px solid var(--line)', background: '#FFFFFF', textAlign: 'center' }}>
                 <span style={{ font: '10px var(--mono)', color: 'var(--muted)' }}>TOTAL ENROLLED</span>
                 <strong style={{ display: 'block', fontSize: '24px', margin: '4px 0 0' }}>{data.total_enrolled}</strong>
               </div>
@@ -81,7 +81,7 @@ export default function AttendanceModal({ classId, onClose }) {
             </div>
 
             {/* Attendance Table */}
-            <div style={{ border: '1px solid var(--line)', background: '#fffdf8' }}>
+            <div style={{ border: '1px solid var(--line)', background: '#FFFFFF' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 0.8fr 1fr 1fr 0.7fr', gap: '8px', padding: '10px 14px', borderBottom: '1px solid var(--line)', font: '10px var(--mono)', color: 'var(--muted)' }}>
                 <span>NAME</span>
                 <span>EMAIL</span>

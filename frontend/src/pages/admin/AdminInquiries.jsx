@@ -132,11 +132,11 @@ export default function AdminInquiries() {
           </div>
 
           <div style={{ display: 'flex', gap: '12px' }}>
-            <div style={{ padding: '12px 20px', background: unreadCount > 0 ? '#fee2e2' : '#fffdf8', border: '1px solid var(--line)', textAlign: 'center' }}>
+            <div style={{ padding: '12px 20px', background: unreadCount > 0 ? '#fee2e2' : '#FFFFFF', border: '1px solid var(--line)', textAlign: 'center' }}>
               <span style={{ font: '10px var(--mono)', color: unreadCount > 0 ? '#b91c1c' : 'var(--muted)' }}>NEW INQUIRIES</span>
               <strong style={{ display: 'block', fontSize: '24px', color: unreadCount > 0 ? '#b91c1c' : 'var(--ink)' }}>{unreadCount}</strong>
             </div>
-            <div style={{ padding: '12px 20px', background: '#fffdf8', border: '1px solid var(--line)', textAlign: 'center' }}>
+            <div style={{ padding: '12px 20px', background: '#FFFFFF', border: '1px solid var(--line)', textAlign: 'center' }}>
               <span style={{ font: '10px var(--mono)', color: 'var(--muted)' }}>TOTAL MESSAGES</span>
               <strong style={{ display: 'block', fontSize: '24px' }}>{totalCount}</strong>
             </div>
@@ -147,7 +147,7 @@ export default function AdminInquiries() {
       {message && <p className="form-message" style={{ marginBottom: '20px' }}>{message}</p>}
 
       {/* FILTER & SEARCH BAR */}
-      <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '25px', background: '#fffdf8', border: '1px solid var(--line)', padding: '16px' }}>
+      <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '25px', background: '#FFFFFF', border: '1px solid var(--line)', padding: '16px' }}>
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           {['all', 'unread', 'read', 'in_progress', 'resolved'].map((st) => (
             <button
@@ -180,7 +180,7 @@ export default function AdminInquiries() {
       ) : inquiries.length === 0 ? (
         <div className="empty-state">No inquiries found matching the selected filter.</div>
       ) : (
-        <div style={{ border: '1px solid var(--line)', background: '#fffdf8' }}>
+        <div style={{ border: '1px solid var(--line)', background: '#FFFFFF' }}>
           <div
             style={{
               display: 'grid',
@@ -275,7 +275,7 @@ export default function AdminInquiries() {
               {selectedInquiry.subject}
             </h2>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', padding: '14px', background: '#fffdf8', border: '1px solid var(--line)', marginBottom: '20px', fontSize: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', padding: '14px', background: '#FFFFFF', border: '1px solid var(--line)', marginBottom: '20px', fontSize: '12px' }}>
               <div>
                 <span style={{ color: 'var(--muted)', font: '10px var(--mono)', display: 'block' }}>FROM</span>
                 <strong>{selectedInquiry.name}</strong>

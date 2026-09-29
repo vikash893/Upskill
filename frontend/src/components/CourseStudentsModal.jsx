@@ -57,7 +57,7 @@ export default function CourseStudentsModal({ course, onClose }) {
         ) : students.length === 0 ? (
           <div className="empty-state">No students are currently enrolled in this course.</div>
         ) : (
-          <div style={{ border: '1px solid var(--line)', background: '#fffdf8' }}>
+          <div style={{ border: '1px solid var(--line)', background: '#FFFFFF' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 1.2fr 1fr auto', gap: '10px', padding: '10px 14px', borderBottom: '1px solid var(--line)', font: '10px var(--mono)', color: 'var(--muted)' }}>
               <span></span>
               <span>NAME</span>

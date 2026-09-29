@@ -82,7 +82,7 @@ export default function AdminTeachers() {
 
         {/* Add Teacher Form (No initial course assignment input as requested) */}
         {showAdd && (
-          <form onSubmit={addTeacher} style={{ padding: '25px', border: '1px solid var(--line)', background: '#fffdf8', marginBottom: '30px', display: 'grid', gap: '15px' }}>
+          <form onSubmit={addTeacher} style={{ padding: '25px', border: '1px solid var(--line)', background: '#FFFFFF', marginBottom: '30px', display: 'grid', gap: '15px' }}>
             <p className="eyebrow">CREATE TEACHER ACCOUNT</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '15px' }}>
               <label style={{ display: 'grid', gap: '6px', color: 'var(--muted)', fontSize: '11px' }}>
@@ -126,7 +126,7 @@ export default function AdminTeachers() {
             {teachers.map((t) => {
               const img = t.photo ? `http://localhost:8000/${t.photo.replace(/\\/g, '/')}` : null
               return (
-                <div key={t._id} style={{ display: 'grid', gridTemplateColumns: '50px 1fr auto', gap: '18px', alignItems: 'center', padding: '18px', border: '1px solid var(--line)', background: '#fffdf8' }}>
+                <div key={t._id} style={{ display: 'grid', gridTemplateColumns: '50px 1fr auto', gap: '18px', alignItems: 'center', padding: '18px', border: '1px solid var(--line)', background: '#FFFFFF' }}>
                   {img ? (
                     <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: `url(${img}) center/cover`, border: '1px solid var(--line)' }} />
                   ) : (

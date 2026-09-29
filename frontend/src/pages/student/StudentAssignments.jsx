@@ -97,7 +97,7 @@ export default function StudentAssignments() {
                 borderRadius: '99px',
                 border: '1px solid',
                 borderColor: filter === f ? 'var(--ink)' : 'var(--line)',
-                background: filter === f ? 'var(--ink)' : '#fffdf8',
+                background: filter === f ? 'var(--ink)' : '#FFFFFF',
                 color: filter === f ? 'var(--paper)' : 'var(--ink)',
                 fontSize: '11px',
                 textTransform: 'capitalize',
@@ -183,7 +183,7 @@ export default function StudentAssignments() {
                         placeholder="Type your answer, notes, or solution link here..."
                         value={submissionForm.text}
                         onChange={(e) => setSubmissionForm({ ...submissionForm, text: e.target.value })}
-                        style={{ padding: '10px', border: '1px solid var(--line)', background: '#fffdf8', fontFamily: 'inherit' }}
+                        style={{ padding: '10px', border: '1px solid var(--line)', background: '#FFFFFF', fontFamily: 'inherit' }}
                       />
                       <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                         <input

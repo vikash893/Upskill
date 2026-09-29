@@ -43,7 +43,7 @@ export default function TermsModal({ initialTab = 'terms', onClose }) {
                 borderRadius: '99px',
                 border: '1px solid',
                 borderColor: activeTab === t.id ? 'var(--ink)' : 'var(--line)',
-                background: activeTab === t.id ? 'var(--ink)' : '#fffdf8',
+                background: activeTab === t.id ? 'var(--ink)' : '#FFFFFF',
                 color: activeTab === t.id ? 'var(--paper)' : 'var(--ink)',
                 fontSize: '11px',
                 fontWeight: 600,

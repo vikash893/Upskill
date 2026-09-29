@@ -68,7 +68,7 @@ export default function TeacherStudents() {
           maxWidth: '400px',
           padding: '12px',
           border: '1px solid var(--line)',
-          background: '#fffdf8',
+          background: '#FFFFFF',
           outlineColor: 'var(--orange)',
           marginBottom: '20px',
         }}
@@ -79,7 +79,7 @@ export default function TeacherStudents() {
       ) : filtered.length === 0 ? (
         <div className="empty-state">No students found matching your search.</div>
       ) : (
-        <div style={{ border: '1px solid var(--line)', background: '#fffdf8' }}>
+        <div style={{ border: '1px solid var(--line)', background: '#FFFFFF' }}>
           <div
             style={{
               display: 'grid',

@@ -8,6 +8,8 @@ const Assignment = require("../models/assignment");
 const LiveClass = require("../models/liveClass");
 const authMiddleware = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
+const { getCache, setCache, delCache, delByPrefix } = require("../config/redis");
+const { publishKafkaEvent, getPaymentTopic } = require("../config/kafka");
 
 const enrollmentRouter = express.Router();
 
@@ -30,7 +32,7 @@ enrollmentRouter.post("/enroll/free/:course_id", authMiddleware, async (req, res
         }
 
         if (course.course_type !== "free" && course.course_amount > 0) {
-            return res.status(400).json({ error: "This is a paid course. Please complete payment to enroll." });
+            return res.status(400).json({ error: "This is a paid course. Please complete Razorpay checkout to enroll." });
         }
 
         const existingEnrollment = await Enrollment.findOne({ student_email, course_id });
@@ -40,6 +42,10 @@ enrollmentRouter.post("/enroll/free/:course_id", authMiddleware, async (req, res
             }
             existingEnrollment.status = "active";
             await existingEnrollment.save();
+
+            await delCache(`enrollment:${encodeURIComponent(student_email.toLowerCase())}:${encodeURIComponent(course_id)}`);
+            await delByPrefix(`cache:student:${encodeURIComponent(student_email.toLowerCase())}`);
+
             return res.status(200).json({ message: "Re-enrolled successfully", enrollment: existingEnrollment });
         }
 
@@ -56,6 +62,16 @@ enrollmentRouter.post("/enroll/free/:course_id", authMiddleware, async (req, res
 
         await newEnrollment.save();
 
+        await delCache(`enrollment:${encodeURIComponent(student_email.toLowerCase())}:${encodeURIComponent(course_id)}`);
+        await delByPrefix(`cache:student:${encodeURIComponent(student_email.toLowerCase())}`);
+
+        publishKafkaEvent(getPaymentTopic(), newEnrollment.course_id, {
+            event_type: "FREE_ENROLLMENT",
+            student_email,
+            course_id: course.course_id,
+            enrolled_at: new Date().toISOString()
+        });
+
         return res.status(201).json({
             message: "Successfully enrolled in free course!",
             enrollment: newEnrollment
@@ -67,22 +83,29 @@ enrollmentRouter.post("/enroll/free/:course_id", authMiddleware, async (req, res
 });
 
 // ======================================================
-// GET MY ENROLLED COURSES (STUDENT DASHBOARD)
+// GET MY ENROLLED COURSES (STUDENT DASHBOARD - REDIS CACHED)
 // ======================================================
 enrollmentRouter.get("/my-courses", authMiddleware, async (req, res) => {
     try {
         const student_email = req.user.email;
+        const cacheKey = `cache:student:${encodeURIComponent(student_email.toLowerCase())}:my-courses`;
+        const cached = await getCache(cacheKey);
 
-        const enrollments = await Enrollment.find({ student_email, status: "active" }).sort({ createdAt: -1 });
+        if (cached) {
+            return res.status(200).json(cached);
+        }
+
+        const enrollments = await Enrollment.find({ student_email, status: "active" }).sort({ createdAt: -1 }).lean();
         const courseIds = enrollments.map(e => e.course_id);
 
         const courseList = await Course.find({ course_id: { $in: courseIds } }).lean();
 
-        // Enrich with counts and plan metadata
         const enrichedCourses = await Promise.all(courseList.map(async (course) => {
-            const lectureCount = await Lecture.countDocuments({ course_id: course.course_id });
-            const assignmentCount = await Assignment.countDocuments({ course_id: course.course_id });
-            const liveClasses = await LiveClass.find({ course_id: course.course_id, status: { $in: ["upcoming", "live"] } }).lean();
+            const [lectureCount, assignmentCount, liveClasses] = await Promise.all([
+                Lecture.countDocuments({ course_id: course.course_id }),
+                Assignment.countDocuments({ course_id: course.course_id }),
+                LiveClass.find({ course_id: course.course_id, status: { $in: ["upcoming", "live"] } }).lean()
+            ]);
 
             const enrollment = enrollments.find(e => e.course_id === course.course_id);
 
@@ -98,10 +121,14 @@ enrollmentRouter.get("/my-courses", authMiddleware, async (req, res) => {
             };
         }));
 
-        return res.status(200).json({
+        const responsePayload = {
             total: enrichedCourses.length,
             courses: enrichedCourses
-        });
+        };
+
+        await setCache(cacheKey, responsePayload, 60);
+
+        return res.status(200).json(responsePayload);
     } catch (error) {
         console.log("GET MY COURSES ERROR:", error);
         return res.status(500).json({ error: "Internal server error" });
@@ -109,7 +136,7 @@ enrollmentRouter.get("/my-courses", authMiddleware, async (req, res) => {
 });
 
 // ======================================================
-// GET STUDENTS IN A COURSE (TEACHER & ADMIN VIEW WITH AVATARS)
+// GET STUDENTS IN A COURSE (TEACHER & ADMIN VIEW)
 // ======================================================
 enrollmentRouter.get("/course/:course_id/students", authMiddleware, async (req, res) => {
     try {
@@ -117,19 +144,18 @@ enrollmentRouter.get("/course/:course_id/students", authMiddleware, async (req, 
         const userEmail = req.user.email;
         const userRole = req.user.role;
 
-        // If teacher, strictly verify they are assigned to this course
         if (userRole === "TEACHER") {
-            const teacher = await Teacher.findOne({ email: userEmail });
-            if (!teacher) {
+            const teacherDoc = await Teacher.findOne({ email: userEmail });
+            if (!teacherDoc) {
                 return res.status(403).json({ error: "Teacher account not found" });
             }
-            const assigned = teacher.course_assigned || [];
+            const assigned = teacherDoc.course_assigned || [];
             const course = await Course.findOne({ course_id });
-            const isAssigned = 
+            const isAssigned =
                 assigned.includes(course_id) ||
                 (course && assigned.includes(course.course_title)) ||
-                assigned.some(c => 
-                    c.toLowerCase() === course_id.toLowerCase() || 
+                assigned.some(c =>
+                    c.toLowerCase() === course_id.toLowerCase() ||
                     (course && c.toLowerCase() === course.course_title.toLowerCase())
                 );
 
@@ -140,16 +166,19 @@ enrollmentRouter.get("/course/:course_id/students", authMiddleware, async (req, 
 
         const enrolledStudents = await Enrollment.find({ course_id, status: "active" }).sort({ createdAt: -1 }).lean();
 
-        // Enrich with student profile photo and phone from User collection
-        const enrichedStudents = await Promise.all(enrolledStudents.map(async (st) => {
-            const userDoc = await User.findOne({ email: st.student_email }).select("name phone photo").lean();
+        const studentEmails = enrolledStudents.map(s => s.student_email);
+        const users = await User.find({ email: { $in: studentEmails } }).select("email name phone photo").lean();
+        const userMap = new Map(users.map(u => [u.email.toLowerCase(), u]));
+
+        const enrichedStudents = enrolledStudents.map(st => {
+            const userDoc = userMap.get(st.student_email.toLowerCase());
             return {
                 ...st,
                 student_name: userDoc?.name || st.student_name,
                 student_phone: userDoc?.phone || null,
                 student_photo: userDoc?.photo ? userDoc.photo.replace(/\\/g, "/") : null
             };
-        }));
+        });
 
         return res.status(200).json({
             total_students: enrichedStudents.length,
@@ -173,6 +202,9 @@ enrollmentRouter.delete("/admin/remove-student/:course_id/:student_email", authM
             return res.status(404).json({ error: "Enrollment record not found" });
         }
 
+        await delCache(`enrollment:${encodeURIComponent(student_email.toLowerCase())}:${encodeURIComponent(course_id)}`);
+        await delByPrefix(`cache:student:${encodeURIComponent(student_email.toLowerCase())}`);
+
         return res.status(200).json({
             message: "Student successfully removed from course",
             student_email,
@@ -192,7 +224,19 @@ enrollmentRouter.get("/check-enrollment/:course_id", authMiddleware, async (req,
         const { course_id } = req.params;
         const student_email = req.user.email;
 
-        const enrollment = await Enrollment.findOne({ student_email, course_id, status: "active" });
+        const cacheKey = `enrollment:${encodeURIComponent(student_email.toLowerCase())}:${encodeURIComponent(course_id)}`;
+        const cached = await getCache(cacheKey);
+
+        if (cached !== null) {
+            return res.status(200).json({
+                enrolled: Boolean(cached),
+                enrollment: cached ? { status: "active", course_id, student_email } : null
+            });
+        }
+
+        const enrollment = await Enrollment.findOne({ student_email, course_id, status: "active" }).lean();
+
+        await setCache(cacheKey, enrollment ? 1 : 0, enrollment ? 30 : 5);
 
         return res.status(200).json({
             enrolled: !!enrollment,

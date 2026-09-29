@@ -130,7 +130,7 @@ export default function Footer() {
                     padding: '10px 12px',
                     background: '#242923',
                     border: '1px solid #3a4038',
-                    color: '#f4f1e9',
+                    color: '#F0F6FF',
                     fontSize: '12px',
                     borderRadius: '4px',
                     outline: 'none',

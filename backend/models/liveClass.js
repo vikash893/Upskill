@@ -4,7 +4,8 @@ const attendanceSchema = new mongoose.Schema(
     {
         student_email: {
             type: String,
-            required: true
+            required: true,
+            lowercase: true
         },
         student_name: {
             type: String,
@@ -36,11 +37,13 @@ const liveClassSchema = new mongoose.Schema(
         class_id: {
             type: String,
             required: true,
-            unique: true
+            unique: true,
+            index: true
         },
         course_id: {
             type: String,
-            required: true
+            required: true,
+            index: true
         },
         course_title: {
             type: String,
@@ -48,7 +51,8 @@ const liveClassSchema = new mongoose.Schema(
         },
         teacher_email: {
             type: String,
-            required: true
+            required: true,
+            index: true
         },
         teacher_name: {
             type: String,
@@ -73,7 +77,8 @@ const liveClassSchema = new mongoose.Schema(
         status: {
             type: String,
             enum: ["upcoming", "live", "ended"],
-            default: "upcoming"
+            default: "upcoming",
+            index: true
         },
         started_at: {
             type: Date,
@@ -105,5 +110,8 @@ const liveClassSchema = new mongoose.Schema(
         timestamps: true
     }
 );
+
+liveClassSchema.index({ course_id: 1, status: 1 });
+liveClassSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("LiveClass", liveClassSchema);

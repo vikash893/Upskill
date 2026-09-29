@@ -33,6 +33,10 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // request logger
 app.use(logger);
 
+// rate limiter
+const { apiRateLimit } = require('./middleware/rateLimit');
+app.use('/api/', apiRateLimit);
+
 // health check
 app.get("/api/health", (req, res) => res.json({ status: "ok", message: "UniSkill Backend is active" }));
 
@@ -55,6 +59,10 @@ app.use("/api" , contactRouter);
 
 // database 
 connectDb();
+
+// redis cache & rate limiter backing
+const { connectRedis } = require('./config/redis');
+connectRedis();
 
 app.listen(port , ()=> {
     console.log(`server is running on the port : ${port}`);

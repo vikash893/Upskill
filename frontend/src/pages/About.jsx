@@ -97,7 +97,7 @@ export default function About({ onAuthOpen }) {
       </section>
 
       {/* STATS STRIP */}
-      <section className="signal-strip" style={{ background: '#fffdf8' }}>
+      <section className="signal-strip" style={{ background: '#FFFFFF' }}>
         <div>
           <strong>{platformStats ? `${platformStats.total_students || 0}` : '10,000+'}</strong>
           <span>Active Students</span>
@@ -123,7 +123,7 @@ export default function About({ onAuthOpen }) {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
-          <div style={{ padding: '32px', background: '#fffdf8', border: '1px solid var(--line)' }}>
+          <div style={{ padding: '32px', background: '#FFFFFF', border: '1px solid var(--line)' }}>
             <span style={{ font: '14px var(--mono)', color: 'var(--orange)', display: 'block', marginBottom: '12px' }}>01 / CLARITY</span>
             <h3 style={{ fontSize: '22px', margin: '0 0 10px' }}>Clear First Principles</h3>
             <p style={{ color: 'var(--muted)', fontSize: '13px', lineHeight: 1.7, margin: 0 }}>
@@ -131,7 +131,7 @@ export default function About({ onAuthOpen }) {
             </p>
           </div>
 
-          <div style={{ padding: '32px', background: '#fffdf8', border: '1px solid var(--line)' }}>
+          <div style={{ padding: '32px', background: '#FFFFFF', border: '1px solid var(--line)' }}>
             <span style={{ font: '14px var(--mono)', color: 'var(--orange)', display: 'block', marginBottom: '12px' }}>02 / MASTERY</span>
             <h3 style={{ fontSize: '22px', margin: '0 0 10px' }}>Learn by Shipping</h3>
             <p style={{ color: 'var(--muted)', fontSize: '13px', lineHeight: 1.7, margin: 0 }}>
@@ -139,7 +139,7 @@ export default function About({ onAuthOpen }) {
             </p>
           </div>
 
-          <div style={{ padding: '32px', background: '#fffdf8', border: '1px solid var(--line)' }}>
+          <div style={{ padding: '32px', background: '#FFFFFF', border: '1px solid var(--line)' }}>
             <span style={{ font: '14px var(--mono)', color: 'var(--orange)', display: 'block', marginBottom: '12px' }}>03 / COMMUNITY</span>
             <h3 style={{ fontSize: '22px', margin: '0 0 10px' }}>Direct Faculty Guidance</h3>
             <p style={{ color: 'var(--muted)', fontSize: '13px', lineHeight: 1.7, margin: 0 }}>
@@ -169,7 +169,7 @@ export default function About({ onAuthOpen }) {
           {milestones.map((m, idx) => (
             <div key={idx} style={{ padding: '20px 24px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px' }}>
               <span style={{ font: '12px var(--mono)', color: 'var(--lime)', fontWeight: 700 }}>{m.year}</span>
-              <strong style={{ display: 'block', fontSize: '16px', color: '#f4f1e9', margin: '4px 0' }}>{m.title}</strong>
+              <strong style={{ display: 'block', fontSize: '16px', color: '#F0F6FF', margin: '4px 0' }}>{m.title}</strong>
               <p style={{ fontSize: '12px', color: '#aaa89d', margin: 0, lineHeight: 1.6 }}>{m.desc}</p>
             </div>
           ))}
@@ -188,7 +188,7 @@ export default function About({ onAuthOpen }) {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '24px' }}>
           {(dbTeachers.length > 0 ? dbTeachers : mentors).map((mentor, idx) => (
-            <div key={idx} style={{ background: '#fffdf8', border: '1px solid var(--line)', padding: '28px', display: 'flex', flexDirection: 'column' }}>
+            <div key={idx} style={{ background: '#FFFFFF', border: '1px solid var(--line)', padding: '28px', display: 'flex', flexDirection: 'column' }}>
               <div className="avatar" style={{ width: '56px', height: '56px', fontSize: '22px', marginBottom: '18px', background: 'var(--ink)' }}>
                 {mentor.name?.charAt(0) || 'M'}
               </div>
@@ -208,7 +208,7 @@ export default function About({ onAuthOpen }) {
       </section>
 
       {/* FREQUENTLY ASKED QUESTIONS */}
-      <section className="content-section" style={{ background: '#eeeade' }}>
+      <section className="content-section" style={{ background: '#F0F6FF' }}>
         <div className="section-heading">
           <div>
             <p className="eyebrow">QUESTIONS ANSWERED</p>
@@ -220,7 +220,7 @@ export default function About({ onAuthOpen }) {
           {faqs.map((faq, idx) => {
             const isOpen = activeFaq === idx
             return (
-              <div key={idx} style={{ background: '#fffdf8', border: '1px solid var(--line)', padding: '22px', cursor: 'pointer' }} onClick={() => toggleFaq(idx)}>
+              <div key={idx} style={{ background: '#FFFFFF', border: '1px solid var(--line)', padding: '22px', cursor: 'pointer' }} onClick={() => toggleFaq(idx)}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <strong style={{ fontSize: '15px' }}>{faq.q}</strong>
                   <span style={{ font: '16px var(--mono)', color: 'var(--orange)', marginLeft: '15px' }}>{isOpen ? '−' : '+'}</span>

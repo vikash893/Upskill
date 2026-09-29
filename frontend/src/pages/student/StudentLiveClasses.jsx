@@ -98,7 +98,7 @@ export default function StudentLiveClasses() {
 
       {/* Recording Player if selected */}
       {selectedPlaybackClass && (
-        <div style={{ padding: '25px', border: '1px solid var(--orange)', background: '#fffdf8', marginBottom: '25px' }}>
+        <div style={{ padding: '25px', border: '1px solid var(--orange)', background: '#FFFFFF', marginBottom: '25px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
             <div>
               <span className="badge" style={{ position: 'static', background: 'var(--orange)', color: 'white' }}>RECORDING PLAYBACK</span>
@@ -148,7 +148,7 @@ export default function StudentLiveClasses() {
                 className="stat-card-clean"
                 style={{
                   border: isLiveNow ? '2px solid var(--orange)' : '1px solid var(--line)',
-                  background: isLiveNow ? '#fff9f4' : '#fffdf8',
+                  background: isLiveNow ? '#fff9f4' : '#FFFFFF',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',

@@ -132,15 +132,15 @@ export default function AdminCourses() {
 
         {/* Add Course Form */}
         {showAdd && (
-          <form onSubmit={addCourse} style={{ padding: '25px', border: '1px solid var(--line)', background: '#fffdf8', marginBottom: '30px', display: 'grid', gap: '15px' }}>
+          <form onSubmit={addCourse} style={{ padding: '25px', border: '1px solid var(--line)', background: '#FFFFFF', marginBottom: '30px', display: 'grid', gap: '15px' }}>
             <p className="eyebrow">CREATE NEW COURSE</p>
             <label style={{ display: 'grid', gap: '6px', color: 'var(--muted)', fontSize: '11px' }}>
               Course Title *
-              <input required value={form.course_title} onChange={(e) => setForm({ ...form, course_title: e.target.value })} style={{ padding: '12px', border: '1px solid var(--line)', background: '#fffdf8' }} />
+              <input required value={form.course_title} onChange={(e) => setForm({ ...form, course_title: e.target.value })} style={{ padding: '12px', border: '1px solid var(--line)', background: '#FFFFFF' }} />
             </label>
             <label style={{ display: 'grid', gap: '6px', color: 'var(--muted)', fontSize: '11px' }}>
               Course Description *
-              <textarea required value={form.course_description} onChange={(e) => setForm({ ...form, course_description: e.target.value })} rows="3" style={{ padding: '12px', border: '1px solid var(--line)', background: '#fffdf8', fontFamily: 'inherit', resize: 'vertical' }} />
+              <textarea required value={form.course_description} onChange={(e) => setForm({ ...form, course_description: e.target.value })} rows="3" style={{ padding: '12px', border: '1px solid var(--line)', background: '#FFFFFF', fontFamily: 'inherit', resize: 'vertical' }} />
             </label>
 
             {/* Course Type and Fee Options */}
@@ -167,7 +167,7 @@ export default function AdminCourses() {
                       placeholder="e.g. 999"
                       value={form.monthly_amount}
                       onChange={(e) => setForm({ ...form, monthly_amount: e.target.value, course_amount: e.target.value })}
-                      style={{ padding: '12px', border: '1px solid var(--line)', background: '#fffdf8' }}
+                      style={{ padding: '12px', border: '1px solid var(--line)', background: '#FFFFFF' }}
                     />
                   </label>
 
@@ -180,7 +180,7 @@ export default function AdminCourses() {
                       placeholder="e.g. 7999"
                       value={form.yearly_amount}
                       onChange={(e) => setForm({ ...form, yearly_amount: e.target.value })}
-                      style={{ padding: '12px', border: '1px solid var(--line)', background: '#fffdf8' }}
+                      style={{ padding: '12px', border: '1px solid var(--line)', background: '#FFFFFF' }}
                     />
                   </label>
                 </>
@@ -256,8 +256,8 @@ export default function AdminCourses() {
               const yearly = c.yearly_amount || (monthly > 0 ? monthly * 10 : 0)
 
               return (
-                <div key={c.course_id} style={{ display: 'grid', gridTemplateColumns: '80px 1.5fr auto', gap: '18px', alignItems: 'center', padding: '18px', border: '1px solid var(--line)', background: '#fffdf8' }}>
-                  <div style={{ width: '80px', height: '60px', background: img ? `url(${img}) center/cover` : '#d9d5c9', borderRadius: '4px' }} />
+                <div key={c.course_id} style={{ display: 'grid', gridTemplateColumns: '80px 1.5fr auto', gap: '18px', alignItems: 'center', padding: '18px', border: '1px solid var(--line)', background: '#FFFFFF' }}>
+                  <div style={{ width: '80px', height: '60px', background: img ? `url(${img}) center/cover` : '#E9EEF7', borderRadius: '4px' }} />
                   <div>
                     <strong>{c.course_title}</strong>
                     <div style={{ fontSize: '12px', color: 'var(--muted)', margin: '4px 0 0' }}>

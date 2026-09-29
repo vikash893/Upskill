@@ -64,7 +64,7 @@ export default function LiveClassModal({ liveClass, onClose, onRecordingToggle }
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && handleClose()}>
-      <div style={{ background: '#20231f', width: 'min(1100px, 98vw)', height: '90vh', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '20px 20px 0 var(--lime)', border: '1px solid var(--line)' }}>
+      <div style={{ background: '#0D0F12', width: 'min(1100px, 98vw)', height: '90vh', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '20px 20px 0 var(--lime)', border: '1px solid var(--line)' }}>
         {/* Header Bar */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', background: '#181a17', color: 'white', borderBottom: '1px solid #333' }}>
           <div>
@@ -113,7 +113,7 @@ export default function LiveClassModal({ liveClass, onClose, onRecordingToggle }
             <button
               className="primary-button"
               onClick={handleClose}
-              style={{ background: '#e66d3e', color: 'white', padding: '8px 16px', fontSize: '12px' }}
+              style={{ background: '#0056D2', color: 'white', padding: '8px 16px', fontSize: '12px' }}
             >
               Leave Class ✕
             </button>

@@ -7,7 +7,7 @@ import AttendanceModal from '../components/AttendanceModal'
 
 export default function LearningRoom() {
   const { courseId } = useParams()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const { session } = useAuth()
   const navigate = useNavigate()
   const [course, setCourse] = useState(null)
@@ -333,13 +333,11 @@ export default function LearningRoom() {
     }
   }
 
-  const recordedClasses = liveClasses.filter((c) => c.recording_url || c.is_recording)
-
   if (loading) return <main><div className="empty-state" style={{ margin: '80px auto', maxWidth: '500px' }}>Loading course learning room...</div></main>
   if (error) return <main><div className="empty-state" style={{ margin: '80px auto', maxWidth: '500px' }}>{error} <br/><Link to="/dashboard" className="text-button" style={{ marginTop: '10px', display: 'inline-block' }}>Back to Dashboard</Link></div></main>
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f1e9' }}>
+    <div style={{ minHeight: '100vh', background: '#F0F6FF' }}>
       {/* Top Learning Bar */}
       <header style={{ height: '70px', borderBottom: '1px solid var(--line)', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4vw' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
@@ -402,7 +400,7 @@ export default function LearningRoom() {
 
             {/* Teacher Add Lecture Form */}
             {showAddLecture && (
-              <form onSubmit={handleAddLecture} style={{ padding: '25px', border: '1px solid var(--line)', background: '#fffdf8', marginBottom: '30px', display: 'grid', gap: '14px' }}>
+              <form onSubmit={handleAddLecture} style={{ padding: '25px', border: '1px solid var(--line)', background: '#FFFFFF', marginBottom: '30px', display: 'grid', gap: '14px' }}>
                 <p className="eyebrow">NEW LECTURE</p>
                 
                 <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '15px' }}>
@@ -470,7 +468,7 @@ export default function LearningRoom() {
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '25px', alignItems: 'start' }}>
                 {/* Active Player / Content View */}
-                <div style={{ background: '#fffdf8', border: '1px solid var(--line)', padding: '25px' }}>
+                <div style={{ background: '#FFFFFF', border: '1px solid var(--line)', padding: '25px' }}>
                   {selectedLecture ? (
                     <>
                       {/* Video Player */}
@@ -494,7 +492,7 @@ export default function LearningRoom() {
                           )}
                         </div>
                       ) : (
-                        <div style={{ height: '220px', background: '#eeeade', display: 'grid', placeContent: 'center', color: 'var(--muted)', font: '12px var(--mono)', marginBottom: '20px' }}>
+                        <div style={{ height: '220px', background: '#F0F6FF', display: 'grid', placeContent: 'center', color: 'var(--muted)', font: '12px var(--mono)', marginBottom: '20px' }}>
                           NO VIDEO ATTACHED · STUDY NOTES BELOW
                         </div>
                       )}
@@ -543,7 +541,7 @@ export default function LearningRoom() {
                 </div>
 
                 {/* Playlist Sidebar */}
-                <div style={{ background: '#fffdf8', border: '1px solid var(--line)', padding: '20px' }}>
+                <div style={{ background: '#FFFFFF', border: '1px solid var(--line)', padding: '20px' }}>
                   <p className="eyebrow" style={{ marginBottom: '15px' }}>ALL LESSONS ({lectures.length})</p>
                   <div style={{ display: 'grid', gap: '8px' }}>
                     {lectures.map((lec, index) => (
@@ -609,7 +607,7 @@ export default function LearningRoom() {
 
             {/* Create Assignment Form */}
             {showAddAssignment && (
-              <form onSubmit={handleAddAssignment} style={{ padding: '25px', border: '1px solid var(--line)', background: '#fffdf8', marginBottom: '30px', display: 'grid', gap: '14px' }}>
+              <form onSubmit={handleAddAssignment} style={{ padding: '25px', border: '1px solid var(--line)', background: '#FFFFFF', marginBottom: '30px', display: 'grid', gap: '14px' }}>
                 <p className="eyebrow">NEW ASSIGNMENT</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '15px' }}>
                   <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)' }}>
@@ -649,7 +647,7 @@ export default function LearningRoom() {
                   const isGraded = mySub?.status === 'graded'
 
                   return (
-                    <div key={asg.assignment_id} style={{ background: '#fffdf8', border: '1px solid var(--line)', padding: '25px' }}>
+                    <div key={asg.assignment_id} style={{ background: '#FFFFFF', border: '1px solid var(--line)', padding: '25px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                         <div>
                           <p className="eyebrow" style={{ marginBottom: '4px' }}>ASSIGNMENT</p>
@@ -800,7 +798,7 @@ export default function LearningRoom() {
 
             {/* Create Live Class Form */}
             {showCreateLive && (
-              <form onSubmit={handleCreateLive} style={{ padding: '25px', border: '1px solid var(--line)', background: '#fffdf8', marginBottom: '30px', display: 'grid', gap: '14px' }}>
+              <form onSubmit={handleCreateLive} style={{ padding: '25px', border: '1px solid var(--line)', background: '#FFFFFF', marginBottom: '30px', display: 'grid', gap: '14px' }}>
                 <p className="eyebrow">SCHEDULE LIVE CLASS</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '15px' }}>
                   <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)' }}>
@@ -824,7 +822,7 @@ export default function LearningRoom() {
 
             {/* Recorded Class Watch Player if selected */}
             {selectedRecordedClass && (
-              <div style={{ padding: '25px', border: '1px solid var(--orange)', background: '#fffdf8', marginBottom: '30px' }}>
+              <div style={{ padding: '25px', border: '1px solid var(--orange)', background: '#FFFFFF', marginBottom: '30px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                   <div>
                     <span className="badge" style={{ position: 'static', background: 'var(--orange)', color: 'white' }}>RECORDING PLAYBACK</span>
@@ -870,7 +868,7 @@ export default function LearningRoom() {
                     <div
                       key={cls.class_id}
                       style={{
-                        background: isLiveNow ? '#fff9f4' : '#fffdf8',
+                        background: isLiveNow ? '#fff9f4' : '#FFFFFF',
                         border: isLiveNow ? '2px solid var(--orange)' : '1px solid var(--line)',
                         padding: '25px',
                         display: 'flex',

@@ -101,7 +101,7 @@ export default function Courses() {
               minWidth: '200px',
               padding: '12px',
               border: '1px solid var(--line)',
-              background: '#fffdf8',
+              background: '#FFFFFF',
               outlineColor: 'var(--orange)',
               fontFamily: 'inherit',
             }}

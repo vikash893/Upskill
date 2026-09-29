@@ -8,7 +8,8 @@ const loggerSchema = new mongoose.Schema(
         },
         email: {
             type: String,
-            default: "Guest"
+            default: "Guest",
+            index: true
         },
         role: {
             type: String,
@@ -24,7 +25,8 @@ const loggerSchema = new mongoose.Schema(
         },
         visitedAt: {
             type: Date,
-            default: Date.now
+            default: Date.now,
+            index: true
         },
         ipAddress: {
             type: String,
@@ -39,12 +41,14 @@ const loggerSchema = new mongoose.Schema(
         },
         isActive: {
             type: Boolean,
-            default: true
+            default: false
         }
     },
     {
         timestamps: true
     }
 );
+
+loggerSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("Logger", loggerSchema);

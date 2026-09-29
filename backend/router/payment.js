@@ -4,15 +4,16 @@ const Razorpay = require("razorpay");
 const Payment = require("../models/payment");
 const Enrollment = require("../models/enrollment");
 const Course = require("../models/courses");
-const Admin = require("../models/admin");
 const User = require("../models/user");
-const upload = require("../config/multer");
 const authMiddleware = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
+const { paymentRateLimit } = require("../middleware/rateLimit");
+const { delCache, delByPrefix } = require("../config/redis");
+const { publishKafkaEvent, getPaymentTopic } = require("../config/kafka");
 
 const paymentRouter = express.Router();
 
-// Helper to initialize Razorpay instance lazily with env vars
+// Helper to initialize Razorpay instance lazily
 const getRazorpayInstance = () => {
     const key_id = process.env.RAZORPAY_KEY_ID;
     const key_secret = process.env.RAZORPAY_KEY_SECRET;
@@ -23,394 +24,7 @@ const getRazorpayInstance = () => {
 };
 
 // ======================================================
-// GET ADMIN QR CODE & PAYMENT SETTINGS
-// ======================================================
-paymentRouter.get("/payment/qr", async (req, res) => {
-    try {
-        const adminDoc = await Admin.findOne({ qr_code: { $ne: null } }).sort({ updatedAt: -1 });
-        const fallbackAdmin = adminDoc || await Admin.findOne();
-
-        return res.status(200).json({
-            qr_code: fallbackAdmin?.qr_code ? fallbackAdmin.qr_code.replace(/\\/g, "/") : null,
-            upi_id: fallbackAdmin?.upi_id || "uniskill@upi",
-            account_name: fallbackAdmin?.account_name || fallbackAdmin?.name || "UniSkill Payments"
-        });
-    } catch (error) {
-        console.log("GET QR ERROR:", error);
-        return res.status(500).json({ error: "Internal server error" });
-    }
-});
-
-// ======================================================
-// ADMIN UPDATE PAYMENT SETTINGS & QR CODE
-// ======================================================
-paymentRouter.post(
-    "/admin/payment-settings",
-    authMiddleware,
-    requireRole("ADMIN"),
-    upload.single("qr_code"),
-    async (req, res) => {
-        try {
-            const adminEmail = req.user.email;
-            const { upi_id, account_name } = req.body;
-
-            const adminDoc = await Admin.findOne({ email: adminEmail });
-            if (!adminDoc) {
-                return res.status(404).json({ error: "Admin not found" });
-            }
-
-            if (upi_id) adminDoc.upi_id = upi_id;
-            if (account_name) adminDoc.account_name = account_name;
-            if (req.file) {
-                adminDoc.qr_code = req.file.path.replace(/\\/g, "/");
-            }
-
-            await adminDoc.save();
-
-            return res.status(200).json({
-                message: "Payment settings and QR Code updated successfully",
-                qr_code: adminDoc.qr_code,
-                upi_id: adminDoc.upi_id,
-                account_name: adminDoc.account_name
-            });
-        } catch (error) {
-            console.log("UPDATE PAYMENT SETTINGS ERROR:", error);
-            return res.status(500).json({ error: "Internal server error" });
-        }
-    }
-);
-
-// ======================================================
-// STUDENT SUBMIT PAYMENT RECEIPT
-// ======================================================
-paymentRouter.post(
-    "/payment/submit-receipt",
-    authMiddleware,
-    upload.single("receipt"),
-    async (req, res) => {
-        try {
-            const studentEmail = req.user.email;
-            const { course_id, plan_type = "monthly", coupon_code, transaction_id } = req.body;
-
-            if (!course_id) {
-                return res.status(400).json({ error: "Course ID is required" });
-            }
-
-            if (!req.file) {
-                return res.status(400).json({ error: "Payment receipt image is required" });
-            }
-
-            const user = await User.findOne({ email: studentEmail });
-            if (!user) {
-                return res.status(404).json({ error: "User account not found" });
-            }
-
-            const course = await Course.findOne({ course_id });
-            if (!course) {
-                return res.status(404).json({ error: "Course not found" });
-            }
-
-            // Check if already active
-            const existingEnrollment = await Enrollment.findOne({ student_email: studentEmail, course_id, status: "active" });
-            if (existingEnrollment) {
-                return res.status(400).json({ error: "You are already actively enrolled in this course" });
-            }
-
-            // Check if pending payment exists
-            const existingPending = await Payment.findOne({ student_email: studentEmail, course_id, status: "pending" });
-            if (existingPending) {
-                return res.status(400).json({
-                    error: "You already have a pending payment request for this course. Please wait for admin approval.",
-                    payment_id: existingPending.payment_id
-                });
-            }
-
-            // Determine base price according to selected plan
-            const selectedPlan = plan_type === "yearly" ? "yearly" : "monthly";
-            let actualAmount = course.course_amount || 0;
-            if (selectedPlan === "yearly") {
-                actualAmount = course.yearly_amount > 0 ? course.yearly_amount : (actualAmount > 0 ? actualAmount * 10 : 0);
-            } else {
-                actualAmount = course.monthly_amount > 0 ? course.monthly_amount : actualAmount;
-            }
-
-            // Calculate discounts
-            const currentDate = new Date();
-            let discountApplied = 0;
-            let currentPrice = actualAmount;
-
-            if (course.discount > 0 && course.discount_time && currentDate < new Date(course.discount_time)) {
-                discountApplied = course.discount;
-                const discAmt = (actualAmount * course.discount) / 100;
-                currentPrice = actualAmount - discAmt;
-            }
-
-            let couponDiscount = 0;
-            let appliedCouponCode = null;
-
-            if (coupon_code) {
-                if (
-                    course.coupon_code &&
-                    course.coupon_code.trim().toUpperCase() === coupon_code.trim().toUpperCase() &&
-                    (!course.coupon_code_time || currentDate <= new Date(course.coupon_code_time))
-                ) {
-                    appliedCouponCode = course.coupon_code;
-                    couponDiscount = course.coupon_discount || 0;
-                    const coupAmt = (actualAmount * couponDiscount) / 100;
-                    currentPrice = Math.max(0, currentPrice - coupAmt);
-                }
-            }
-
-            const finalAmount = Math.round(currentPrice);
-            const randomCode = crypto.randomUUID ? crypto.randomUUID().substring(0, 8).toUpperCase() : Math.random().toString(36).substring(2, 10).toUpperCase();
-            const payment_id = `PAY-${Date.now().toString().slice(-6)}-${randomCode}`;
-
-            const receiptPath = req.file ? `uploads/${req.file.filename}`.replace(/\\/g, "/") : null;
-
-            // Plan expiry estimate (monthly = 30 days, yearly = 365 days)
-            const expiryDays = selectedPlan === "yearly" ? 365 : 30;
-            const planExpiry = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);
-
-            const newPayment = new Payment({
-                payment_id,
-                student_id: user._id,
-                student_name: user.name,
-                student_email: user.email,
-                course_id: course.course_id,
-                course_title: course.course_title,
-                plan_type: selectedPlan,
-                plan_expiry: planExpiry,
-                actual_amount: actualAmount,
-                discount_applied: discountApplied,
-                coupon_code: appliedCouponCode,
-                coupon_discount: couponDiscount,
-                final_amount: finalAmount,
-                receipt_photo: receiptPath,
-                transaction_id: transaction_id || "",
-                status: "pending"
-            });
-
-            await newPayment.save();
-
-            return res.status(201).json({
-                message: "Payment receipt submitted successfully! Admin will review and approve shortly.",
-                payment: newPayment
-            });
-
-        } catch (error) {
-            console.log("SUBMIT RECEIPT ERROR:", error);
-            return res.status(500).json({ error: "Internal server error" });
-        }
-    }
-);
-
-// ======================================================
-// STUDENT LOG PAYMENT CANCELLATION
-// ======================================================
-paymentRouter.post(
-    "/payment/cancel-checkout",
-    authMiddleware,
-    async (req, res) => {
-        try {
-            const studentEmail = req.user.email;
-            const { course_id, plan_type = "monthly", reason } = req.body;
-
-            if (!course_id) {
-                return res.status(400).json({ error: "Course ID is required" });
-            }
-
-            const user = await User.findOne({ email: studentEmail });
-            if (!user) {
-                return res.status(404).json({ error: "User account not found" });
-            }
-
-            const course = await Course.findOne({ course_id });
-            if (!course) {
-                return res.status(404).json({ error: "Course not found" });
-            }
-
-            const selectedPlan = plan_type === "yearly" ? "yearly" : "monthly";
-            let actualAmount = course.course_amount || 0;
-            if (selectedPlan === "yearly") {
-                actualAmount = course.yearly_amount > 0 ? course.yearly_amount : (actualAmount > 0 ? actualAmount * 10 : 0);
-            } else {
-                actualAmount = course.monthly_amount > 0 ? course.monthly_amount : actualAmount;
-            }
-
-            const randomCode = crypto.randomUUID ? crypto.randomUUID().substring(0, 6).toUpperCase() : Math.random().toString(36).substring(2, 8).toUpperCase();
-            const payment_id = `CANC-${Date.now().toString().slice(-6)}-${randomCode}`;
-
-            const cancelledPayment = new Payment({
-                payment_id,
-                student_id: user._id,
-                student_name: user.name,
-                student_email: user.email,
-                course_id: course.course_id,
-                course_title: course.course_title,
-                plan_type: selectedPlan,
-                actual_amount: actualAmount,
-                discount_applied: course.discount || 0,
-                final_amount: actualAmount,
-                receipt_photo: null,
-                transaction_id: "CANCELLED_CHECKOUT",
-                status: "cancelled",
-                cancellation_reason: reason || "Student cancelled checkout before submitting receipt"
-            });
-
-            await cancelledPayment.save();
-
-            return res.status(200).json({
-                message: "Cancellation recorded successfully",
-                payment: cancelledPayment
-            });
-        } catch (error) {
-            console.log("CANCEL CHECKOUT ERROR:", error);
-            return res.status(500).json({ error: "Internal server error" });
-        }
-    }
-);
-
-// ======================================================
-// STUDENT PAYMENT HISTORY
-// ======================================================
-paymentRouter.get("/payment/student-history", authMiddleware, async (req, res) => {
-    try {
-        const studentEmail = req.user.email;
-        const payments = await Payment.find({ student_email: studentEmail }).sort({ createdAt: -1 });
-
-        return res.status(200).json({
-            total: payments.length,
-            payments
-        });
-    } catch (error) {
-        console.log("STUDENT PAYMENT HISTORY ERROR:", error);
-        return res.status(500).json({ error: "Internal server error" });
-    }
-});
-
-// ======================================================
-// ADMIN GET ALL PAYMENTS (WITH FILTER)
-// ======================================================
-paymentRouter.get("/payment/all", authMiddleware, requireRole("ADMIN"), async (req, res) => {
-    try {
-        const { status } = req.query;
-        const filter = {};
-        if (status && ["pending", "approved", "rejected", "cancelled"].includes(status)) {
-            filter.status = status;
-        }
-
-        const payments = await Payment.find(filter).sort({ createdAt: -1 });
-
-        return res.status(200).json({
-            total: payments.length,
-            payments
-        });
-    } catch (error) {
-        console.log("ADMIN GET PAYMENTS ERROR:", error);
-        return res.status(500).json({ error: "Internal server error" });
-    }
-});
-
-// ======================================================
-// ADMIN APPROVE PAYMENT RECEIPT (CREATES ENROLLMENT WITH PLAN DURATION)
-// ======================================================
-paymentRouter.patch("/payment/approve/:payment_id", authMiddleware, requireRole("ADMIN"), async (req, res) => {
-    try {
-        const { payment_id } = req.params;
-        const adminEmail = req.user.email;
-
-        const payment = await Payment.findOne({ payment_id });
-        if (!payment) {
-            return res.status(404).json({ error: "Payment record not found" });
-        }
-
-        if (payment.status === "approved") {
-            return res.status(400).json({ error: "Payment is already approved" });
-        }
-
-        const approvedAt = new Date();
-        const selectedPlan = payment.plan_type === "yearly" ? "yearly" : "monthly";
-        const expiryDays = selectedPlan === "yearly" ? 365 : 30;
-        const planExpiry = new Date(approvedAt.getTime() + expiryDays * 24 * 60 * 60 * 1000);
-
-        payment.status = "approved";
-        payment.approved_by = adminEmail;
-        payment.approved_at = approvedAt;
-        payment.plan_expiry = planExpiry;
-        payment.rejection_reason = null;
-        await payment.save();
-
-        // Create or activate enrollment with exact plan expiry
-        const existingEnrollment = await Enrollment.findOne({
-            student_email: payment.student_email,
-            course_id: payment.course_id
-        });
-
-        if (existingEnrollment) {
-            existingEnrollment.status = "active";
-            existingEnrollment.payment_id = payment.payment_id;
-            existingEnrollment.plan_type = selectedPlan;
-            existingEnrollment.plan_expiry = planExpiry;
-            existingEnrollment.enrolled_at = approvedAt;
-            await existingEnrollment.save();
-        } else {
-            const newEnrollment = new Enrollment({
-                student_id: payment.student_id,
-                student_name: payment.student_name,
-                student_email: payment.student_email,
-                course_id: payment.course_id,
-                course_title: payment.course_title,
-                plan_type: selectedPlan,
-                plan_expiry: planExpiry,
-                status: "active",
-                payment_id: payment.payment_id,
-                enrolled_at: approvedAt
-            });
-            await newEnrollment.save();
-        }
-
-        return res.status(200).json({
-            message: "Payment approved and student enrolled successfully in the course!",
-            payment
-        });
-    } catch (error) {
-        console.log("APPROVE PAYMENT ERROR:", error);
-        return res.status(500).json({ error: "Internal server error" });
-    }
-});
-
-// ======================================================
-// ADMIN REJECT PAYMENT RECEIPT
-// ======================================================
-paymentRouter.patch("/payment/reject/:payment_id", authMiddleware, requireRole("ADMIN"), async (req, res) => {
-    try {
-        const { payment_id } = req.params;
-        const { reason } = req.body;
-        const adminEmail = req.user.email;
-
-        const payment = await Payment.findOne({ payment_id });
-        if (!payment) {
-            return res.status(404).json({ error: "Payment record not found" });
-        }
-
-        payment.status = "rejected";
-        payment.rejection_reason = reason || "Payment verification failed or invalid receipt";
-        payment.approved_by = adminEmail;
-        payment.approved_at = new Date();
-        await payment.save();
-
-        return res.status(200).json({
-            message: "Payment rejected",
-            payment
-        });
-    } catch (error) {
-        console.log("REJECT PAYMENT ERROR:", error);
-        return res.status(500).json({ error: "Internal server error" });
-    }
-});
-
-// ======================================================
-// RAZORPAY - CREATE ORDER (STEP 1)
+// 1. RAZORPAY - CREATE ORDER
 // ======================================================
 const handleCreateOrder = async (req, res) => {
     try {
@@ -428,10 +42,18 @@ const handleCreateOrder = async (req, res) => {
                 return res.status(404).json({ error: "Course not found" });
             }
 
-            // Check if already actively enrolled
-            const existingEnrollment = await Enrollment.findOne({ student_email: studentEmail, course_id, status: "active" });
+            // Check if student already actively enrolled
+            const existingEnrollment = await Enrollment.findOne({
+                student_email: studentEmail,
+                course_id,
+                status: "active"
+            });
+
             if (existingEnrollment) {
-                return res.status(400).json({ error: "You are already actively enrolled in this course" });
+                // If enrolled with active future expiry, prevent duplicate
+                if (!existingEnrollment.plan_expiry || new Date(existingEnrollment.plan_expiry) > new Date()) {
+                    return res.status(400).json({ error: "You already have active enrollment in this course." });
+                }
             }
 
             // Calculate base amount
@@ -442,10 +64,13 @@ const handleCreateOrder = async (req, res) => {
                 actualAmount = course.monthly_amount > 0 ? course.monthly_amount : actualAmount;
             }
 
-            // Apply flash discount
+            // Apply active flash discount
             const currentDate = new Date();
             let currentPrice = actualAmount;
+            let discountApplied = 0;
+
             if (course.discount > 0 && course.discount_time && currentDate < new Date(course.discount_time)) {
+                discountApplied = course.discount;
                 const discAmt = (actualAmount * course.discount) / 100;
                 currentPrice = actualAmount - discAmt;
             }
@@ -465,13 +90,12 @@ const handleCreateOrder = async (req, res) => {
             const finalPriceInRupees = Math.round(currentPrice);
             amountInPaise = finalPriceInRupees * 100;
         } else if (amount) {
-            // Direct amount passed in paise or INR
             amountInPaise = parseInt(amount, 10);
         }
 
-        // Validate minimum amount (Minimum 100 paise = 1 INR)
+        // Validate minimum amount (Minimum 100 paise = ₹1.00)
         if (!amountInPaise || amountInPaise < 100) {
-            return res.status(400).json({ error: "Payment amount must be at least 100 paise (₹1.00)" });
+            return res.status(400).json({ error: "Payment amount must be at least ₹1.00 (100 paise)." });
         }
 
         const razorpay = getRazorpayInstance();
@@ -492,6 +116,16 @@ const handleCreateOrder = async (req, res) => {
 
         const order = await razorpay.orders.create(options);
 
+        // Stream event to Kafka
+        publishKafkaEvent(getPaymentTopic(), order.id, {
+            event_type: "ORDER_CREATED",
+            order_id: order.id,
+            amount: order.amount,
+            student_email: studentEmail,
+            course_id: course?.course_id || course_id,
+            created_at: new Date().toISOString()
+        });
+
         return res.status(200).json({
             order_id: order.id,
             id: order.id,
@@ -507,20 +141,20 @@ const handleCreateOrder = async (req, res) => {
         console.error("RAZORPAY CREATE ORDER ERROR:", error);
         if (error?.statusCode === 401 || error?.error?.code === "BAD_REQUEST_ERROR") {
             return res.status(400).json({
-                error: "Razorpay Gateway Authentication Failed: Your RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET is invalid/expired. Please verify your Razorpay API keys in backend/.env or use the Manual UPI QR payment method."
+                error: "Razorpay Gateway Authentication Failed: Please verify your RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in backend configuration."
             });
         }
         return res.status(500).json({
-            error: error?.error?.description || error?.message || "Failed to create Razorpay order"
+            error: error?.error?.description || error?.message || "Failed to create Razorpay checkout order"
         });
     }
 };
 
-paymentRouter.post("/create-order", authMiddleware, handleCreateOrder);
-paymentRouter.post("/payment/create-order", authMiddleware, handleCreateOrder);
+paymentRouter.post("/create-order", authMiddleware, paymentRateLimit, handleCreateOrder);
+paymentRouter.post("/payment/create-order", authMiddleware, paymentRateLimit, handleCreateOrder);
 
 // ======================================================
-// RAZORPAY - VERIFY PAYMENT SIGNATURE (STEP 3)
+// 2. RAZORPAY - VERIFY PAYMENT SIGNATURE
 // ======================================================
 const handleVerifyPayment = async (req, res) => {
     try {
@@ -534,10 +168,9 @@ const handleVerifyPayment = async (req, res) => {
             coupon_code
         } = req.body;
 
-        // Step 3 validation: verify required fields
         if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
             return res.status(400).json({
-                error: "Missing required verification fields: razorpay_order_id, razorpay_payment_id, and razorpay_signature are required."
+                error: "Missing required verification parameters: razorpay_order_id, razorpay_payment_id, and razorpay_signature."
             });
         }
 
@@ -546,7 +179,7 @@ const handleVerifyPayment = async (req, res) => {
             return res.status(500).json({ error: "Razorpay secret key is not configured on the server." });
         }
 
-        // Algorithm: HMAC-SHA256(order_id + "|" + payment_id, KEY_SECRET)
+        // HMAC-SHA256(order_id + "|" + payment_id, KEY_SECRET)
         const expectedSignature = crypto
             .createHmac("sha256", secret)
             .update(`${razorpay_order_id}|${razorpay_payment_id}`)
@@ -555,11 +188,11 @@ const handleVerifyPayment = async (req, res) => {
         if (expectedSignature !== razorpay_signature) {
             return res.status(400).json({
                 success: false,
-                error: "Payment verification failed: Invalid signature. Transaction cannot be verified."
+                error: "Payment verification failed: Invalid digital signature. Transaction cannot be validated."
             });
         }
 
-        // Signature verified successfully! Now grant course access and record payment.
+        // Signature verified! Grant instant access & record payment idempotently
         let savedPayment = null;
         let savedEnrollment = null;
 
@@ -571,7 +204,12 @@ const handleVerifyPayment = async (req, res) => {
             const now = new Date();
             const planExpiry = new Date(now.getTime() + expiryDays * 24 * 60 * 60 * 1000);
 
-            let actualAmount = course ? (selectedPlan === "yearly" ? (course.yearly_amount > 0 ? course.yearly_amount : (course.course_amount > 0 ? course.course_amount * 10 : 0)) : (course.monthly_amount > 0 ? course.monthly_amount : course.course_amount || 0)) : 0;
+            let actualAmount = course
+                ? (selectedPlan === "yearly"
+                    ? (course.yearly_amount > 0 ? course.yearly_amount : (course.course_amount > 0 ? course.course_amount * 10 : 0))
+                    : (course.monthly_amount > 0 ? course.monthly_amount : course.course_amount || 0))
+                : 0;
+
             let currentPrice = actualAmount;
             let discountApplied = 0;
 
@@ -597,40 +235,41 @@ const handleVerifyPayment = async (req, res) => {
             }
             const finalAmount = Math.round(currentPrice);
 
-            // Record verified payment
-            savedPayment = new Payment({
-                payment_id: `PAY-RZP-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-                student_id: user?._id || req.user.id,
-                student_name: user?.name || req.user.name || "Student",
-                student_email: studentEmail,
-                course_id: course?.course_id || course_id,
-                course_title: course?.course_title || "Enrolled Course",
-                actual_amount: actualAmount,
-                discount_applied: discountApplied,
-                coupon_code: appliedCouponCode,
-                coupon_discount: couponDiscount,
-                final_amount: finalAmount,
-                plan_type: selectedPlan,
-                plan_expiry: planExpiry,
-                receipt_photo: null,
-                transaction_id: razorpay_payment_id,
-                status: "approved",
-                approved_by: "RAZORPAY_GATEWAY",
-                approved_at: now
-            });
-            await savedPayment.save();
+            // Record or update verified payment
+            const payment_id = `PAY-RZP-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
-            // Create or update active enrollment
-            let existingEnrollment = await Enrollment.findOne({ student_email: studentEmail, course_id });
-            if (existingEnrollment) {
-                existingEnrollment.status = "active";
-                existingEnrollment.plan_type = selectedPlan;
-                existingEnrollment.plan_expiry = planExpiry;
-                existingEnrollment.enrolled_at = now;
-                existingEnrollment.payment_id = savedPayment.payment_id;
-                savedEnrollment = await existingEnrollment.save();
-            } else {
-                savedEnrollment = new Enrollment({
+            savedPayment = await Payment.findOneAndUpdate(
+                { razorpay_payment_id },
+                {
+                    payment_id,
+                    student_id: user?._id || req.user.id,
+                    student_name: user?.name || req.user.name || "Student",
+                    student_email: studentEmail,
+                    course_id: course?.course_id || course_id,
+                    course_title: course?.course_title || "Enrolled Course",
+                    actual_amount: actualAmount,
+                    discount_applied: discountApplied,
+                    coupon_code: appliedCouponCode,
+                    coupon_discount: couponDiscount,
+                    final_amount: finalAmount,
+                    plan_type: selectedPlan,
+                    plan_expiry: planExpiry,
+                    payment_gateway: "RAZORPAY",
+                    razorpay_order_id,
+                    razorpay_payment_id,
+                    razorpay_signature,
+                    transaction_id: razorpay_payment_id,
+                    status: "approved",
+                    approved_by: "RAZORPAY_GATEWAY",
+                    approved_at: now
+                },
+                { upsert: true, new: true }
+            );
+
+            // Activate enrollment
+            savedEnrollment = await Enrollment.findOneAndUpdate(
+                { student_email: studentEmail, course_id: course?.course_id || course_id },
+                {
                     student_id: user?._id || req.user.id,
                     student_name: user?.name || req.user.name || "Student",
                     student_email: studentEmail,
@@ -641,14 +280,31 @@ const handleVerifyPayment = async (req, res) => {
                     status: "active",
                     payment_id: savedPayment.payment_id,
                     enrolled_at: now
-                });
-                await savedEnrollment.save();
-            }
+                },
+                { upsert: true, new: true }
+            );
+
+            // Invalidate student caches in Redis
+            await delCache(`enrollment:${encodeURIComponent(studentEmail.toLowerCase())}:${encodeURIComponent(course_id)}`);
+            await delByPrefix(`cache:student:${encodeURIComponent(studentEmail.toLowerCase())}`);
+
+            // Stream payment event to Kafka
+            publishKafkaEvent(getPaymentTopic(), razorpay_payment_id, {
+                event_type: "PAYMENT_VERIFIED",
+                payment_id: savedPayment.payment_id,
+                razorpay_payment_id,
+                razorpay_order_id,
+                student_email: studentEmail,
+                course_id: course?.course_id || course_id,
+                final_amount: finalAmount,
+                plan_type: selectedPlan,
+                enrolled_at: now.toISOString()
+            });
         }
 
         return res.status(200).json({
             success: true,
-            message: "Payment verified successfully! You have been granted instant access to the course.",
+            message: "Payment verified successfully! Instant course access has been activated.",
             order_id: razorpay_order_id,
             payment_id: razorpay_payment_id,
             payment: savedPayment,
@@ -660,11 +316,183 @@ const handleVerifyPayment = async (req, res) => {
     }
 };
 
-paymentRouter.post("/verify-payment", authMiddleware, handleVerifyPayment);
-paymentRouter.post("/payment/verify-payment", authMiddleware, handleVerifyPayment);
+paymentRouter.post("/verify-payment", authMiddleware, paymentRateLimit, handleVerifyPayment);
+paymentRouter.post("/payment/verify-payment", authMiddleware, paymentRateLimit, handleVerifyPayment);
 
 // ======================================================
-// GET PAYMENT RECEIPT DETAILS (FOR DOWNLOAD / INVOICE)
+// 3. RAZORPAY WEBHOOK HANDLER
+// ======================================================
+paymentRouter.post("/payment/webhook", async (req, res) => {
+    try {
+        const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || process.env.RAZORPAY_KEY_SECRET;
+        const signature = req.headers["x-razorpay-signature"];
+
+        if (webhookSecret && signature) {
+            const bodyString = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+            const expectedSignature = crypto
+                .createHmac("sha256", webhookSecret)
+                .update(bodyString)
+                .digest("hex");
+
+            if (expectedSignature !== signature) {
+                console.warn("⚠️ Razorpay Webhook signature mismatch.");
+                return res.status(400).json({ error: "Invalid webhook signature" });
+            }
+        }
+
+        const event = req.body?.event;
+        const payload = req.body?.payload;
+
+        console.log(`Razorpay Webhook event received: ${event}`);
+
+        if (event === "payment.captured" || event === "order.paid") {
+            const paymentEntity = payload?.payment?.entity;
+            const notes = paymentEntity?.notes || payload?.order?.entity?.notes || {};
+            const studentEmail = notes.student_email;
+            const courseId = notes.course_id;
+            const planType = notes.plan_type || "monthly";
+
+            if (studentEmail && courseId) {
+                const now = new Date();
+                const expiryDays = planType === "yearly" ? 365 : 30;
+                const planExpiry = new Date(now.getTime() + expiryDays * 24 * 60 * 60 * 1000);
+
+                await Enrollment.findOneAndUpdate(
+                    { student_email: studentEmail, course_id: courseId },
+                    {
+                        student_name: notes.student_name || "Student",
+                        course_title: notes.course_title || "Course",
+                        plan_type: planType,
+                        plan_expiry: planExpiry,
+                        status: "active",
+                        enrolled_at: now
+                    },
+                    { upsert: true }
+                );
+
+                await delCache(`enrollment:${encodeURIComponent(studentEmail.toLowerCase())}:${encodeURIComponent(courseId)}`);
+            }
+        }
+
+        publishKafkaEvent(getPaymentTopic(), event, {
+            event_type: "WEBHOOK_EVENT",
+            event,
+            received_at: new Date().toISOString()
+        });
+
+        return res.status(200).json({ status: "ok" });
+    } catch (error) {
+        console.error("WEBHOOK ERROR:", error);
+        return res.status(500).json({ error: "Webhook processing error" });
+    }
+});
+
+// ======================================================
+// 4. STUDENT LOG CHECKOUT CANCELLATION
+// ======================================================
+paymentRouter.post("/payment/cancel-checkout", authMiddleware, async (req, res) => {
+    try {
+        const studentEmail = req.user.email;
+        const { course_id, plan_type = "monthly", reason } = req.body;
+
+        if (!course_id) {
+            return res.status(400).json({ error: "Course ID is required" });
+        }
+
+        const user = await User.findOne({ email: studentEmail });
+        const course = await Course.findOne({ course_id });
+
+        const selectedPlan = plan_type === "yearly" ? "yearly" : "monthly";
+        let actualAmount = course ? (selectedPlan === "yearly" ? (course.yearly_amount || (course.course_amount * 10)) : (course.monthly_amount || course.course_amount || 0)) : 0;
+
+        const randomCode = crypto.randomUUID ? crypto.randomUUID().substring(0, 6).toUpperCase() : Math.random().toString(36).substring(2, 8).toUpperCase();
+        const payment_id = `CANC-${Date.now().toString().slice(-6)}-${randomCode}`;
+
+        const cancelledPayment = new Payment({
+            payment_id,
+            student_id: user?._id || req.user.id,
+            student_name: user?.name || req.user.name || "Student",
+            student_email: studentEmail,
+            course_id: course?.course_id || course_id,
+            course_title: course?.course_title || "Course",
+            plan_type: selectedPlan,
+            actual_amount: actualAmount,
+            discount_applied: course?.discount || 0,
+            final_amount: actualAmount,
+            payment_gateway: "RAZORPAY",
+            transaction_id: "CANCELLED_CHECKOUT",
+            status: "cancelled",
+            cancellation_reason: reason || "Student dismissed Razorpay modal before completing payment"
+        });
+
+        await cancelledPayment.save();
+
+        return res.status(200).json({
+            message: "Cancellation recorded successfully",
+            payment: cancelledPayment
+        });
+    } catch (error) {
+        console.log("CANCEL CHECKOUT ERROR:", error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// ======================================================
+// 5. STUDENT PAYMENT HISTORY
+// ======================================================
+paymentRouter.get("/payment/student-history", authMiddleware, async (req, res) => {
+    try {
+        const studentEmail = req.user.email;
+        const payments = await Payment.find({ student_email: studentEmail }).sort({ createdAt: -1 }).lean();
+
+        return res.status(200).json({
+            total: payments.length,
+            payments
+        });
+    } catch (error) {
+        console.log("STUDENT PAYMENT HISTORY ERROR:", error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// ======================================================
+// 6. ADMIN GET ALL TRANSACTIONS
+// ======================================================
+paymentRouter.get("/payment/all", authMiddleware, requireRole("ADMIN"), async (req, res) => {
+    try {
+        const { status, search } = req.query;
+        const filter = {};
+
+        if (status && status !== "all") {
+            filter.status = status;
+        }
+
+        if (search && search.trim()) {
+            const q = search.trim();
+            filter.$or = [
+                { payment_id: { $regex: q, $options: "i" } },
+                { student_email: { $regex: q, $options: "i" } },
+                { student_name: { $regex: q, $options: "i" } },
+                { course_title: { $regex: q, $options: "i" } },
+                { transaction_id: { $regex: q, $options: "i" } },
+                { razorpay_payment_id: { $regex: q, $options: "i" } }
+            ];
+        }
+
+        const payments = await Payment.find(filter).sort({ createdAt: -1 }).lean();
+
+        return res.status(200).json({
+            total: payments.length,
+            payments
+        });
+    } catch (error) {
+        console.log("ADMIN GET PAYMENTS ERROR:", error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// ======================================================
+// 7. GET PAYMENT RECEIPT / INVOICE
 // ======================================================
 paymentRouter.get("/payment/receipt/:payment_id", authMiddleware, async (req, res) => {
     try {
@@ -672,24 +500,19 @@ paymentRouter.get("/payment/receipt/:payment_id", authMiddleware, async (req, re
         const userEmail = req.user.email;
         const userRole = req.user.role;
 
-        const payment = await Payment.findOne({ payment_id });
+        const payment = await Payment.findOne({ payment_id }).lean();
         if (!payment) {
-            return res.status(404).json({ error: "Payment receipt not found" });
+            return res.status(404).json({ error: "Payment receipt record not found" });
         }
 
-        // Students can only access their own receipts; Admins can access all
-        if (userRole !== "ADMIN" && payment.student_email !== userEmail) {
+        if (userRole !== "ADMIN" && payment.student_email.toLowerCase() !== userEmail.toLowerCase()) {
             return res.status(403).json({ error: "Unauthorized access to this receipt" });
         }
 
-        return res.status(200).json({
-            receipt: payment
-        });
+        return res.status(200).json({ receipt: payment });
     } catch (error) {
         return res.status(500).json({ error: "Internal server error" });
     }
 });
 
 module.exports = paymentRouter;
-
-

@@ -4,7 +4,8 @@ const submissionSchema = new mongoose.Schema(
     {
         student_email: {
             type: String,
-            required: true
+            required: true,
+            lowercase: true
         },
         student_name: {
             type: String,
@@ -44,11 +45,13 @@ const assignmentSchema = new mongoose.Schema(
         assignment_id: {
             type: String,
             required: true,
-            unique: true
+            unique: true,
+            index: true
         },
         course_id: {
             type: String,
-            required: true
+            required: true,
+            index: true
         },
         course_title: {
             type: String,
@@ -56,7 +59,8 @@ const assignmentSchema = new mongoose.Schema(
         },
         teacher_email: {
             type: String,
-            required: true
+            required: true,
+            index: true
         },
         teacher_name: {
             type: String,
@@ -88,5 +92,7 @@ const assignmentSchema = new mongoose.Schema(
         timestamps: true
     }
 );
+
+assignmentSchema.index({ course_id: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Assignment", assignmentSchema);

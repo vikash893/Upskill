@@ -42,7 +42,7 @@ export default function ReceiptModal({ receipt, onClose }) {
             </div>
           </div>
 
-          <div style={{ border: '1px solid var(--line)', background: '#fffdf8', padding: '16px', marginBottom: '20px' }}>
+          <div style={{ border: '1px solid var(--line)', background: '#FFFFFF', padding: '16px', marginBottom: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--line)', paddingBottom: '8px', marginBottom: '10px', font: '11px var(--mono)', color: 'var(--muted)' }}>
               <span>COURSE TITLE</span>
               <span>AMOUNT</span>

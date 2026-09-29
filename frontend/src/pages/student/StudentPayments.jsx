@@ -38,7 +38,7 @@ export default function StudentPayments() {
       ) : payments.length === 0 ? (
         <div className="empty-state">No payment records found on your account.</div>
       ) : (
-        <div style={{ border: '1px solid var(--line)', background: '#fffdf8', overflowX: 'auto' }}>
+        <div style={{ border: '1px solid var(--line)', background: '#FFFFFF', overflowX: 'auto' }}>
           <div
             style={{
               display: 'grid',
@@ -77,7 +77,7 @@ export default function StudentPayments() {
                   borderBottom: '1px solid var(--line)',
                   fontSize: '13px',
                   minWidth: '700px',
-                  background: isCancelled ? '#fafafa' : '#fffdf8',
+                  background: isCancelled ? '#fafafa' : '#FFFFFF',
                 }}
               >
                 {/* Course & ID */}

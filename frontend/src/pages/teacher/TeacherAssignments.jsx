@@ -114,7 +114,7 @@ export default function TeacherAssignments() {
 
       {/* Create Form */}
       {showCreate && (
-        <form onSubmit={handleCreateAssignment} style={{ padding: '25px', border: '1px solid var(--line)', background: '#fffdf8', marginBottom: '30px', display: 'grid', gap: '15px' }}>
+        <form onSubmit={handleCreateAssignment} style={{ padding: '25px', border: '1px solid var(--line)', background: '#FFFFFF', marginBottom: '30px', display: 'grid', gap: '15px' }}>
           <p className="eyebrow">PUBLISH ASSIGNMENT</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '15px' }}>
             <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)' }}>
