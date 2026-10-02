@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import ReceiptModal from '../components/ReceiptModal'
+import { mediaUrl } from '../utils/mediaUrl'
 
 export default function AdminPayments() {
   const { session } = useAuth()
@@ -127,7 +128,7 @@ export default function AdminPayments() {
         ) : (
           <div style={{ display: 'grid', gap: '14px' }}>
             {payments.map((p) => {
-              const receiptImg = p.receipt_photo ? `http://localhost:8000/${p.receipt_photo.replace(/\\/g, '/')}` : null
+              const receiptImg = mediaUrl(p.receipt_photo)
               const isCancelled = p.status === 'cancelled'
               const planType = p.plan_type || 'monthly'
 

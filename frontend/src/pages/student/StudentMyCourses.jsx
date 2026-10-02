@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
+import { mediaUrl } from '../../utils/mediaUrl'
 
 export default function StudentMyCourses() {
   const { session } = useAuth()
@@ -51,7 +52,7 @@ export default function StudentMyCourses() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '24px' }}>
           {courses.map((course) => {
-            const image = course.photo ? `http://localhost:8000/${course.photo.replace(/\\/g, '/')}` : null
+            const image = mediaUrl(course.photo)
             const hasLive = course.active_live_classes?.some((l) => l.status === 'live')
             const planType = course.plan_type || (course.course_type === 'free' ? 'lifetime' : 'monthly')
             const expiryDate = course.plan_expiry ? new Date(course.plan_expiry) : null
@@ -79,6 +80,32 @@ export default function StudentMyCourses() {
                   <p className="course-description" style={{ fontSize: '12.5px', marginBottom: '14px' }}>
                     {course.course_description}
                   </p>
+
+                  {course.assigned_teachers?.length > 0 && (
+                    <div style={{ display: 'grid', gap: '8px', marginBottom: '16px' }}>
+                      <span style={{ font: '10px var(--mono)', color: 'var(--muted)' }}>INSTRUCTOR</span>
+                      {course.assigned_teachers.map((teacher) => {
+                        const teacherPhoto = mediaUrl(teacher.photo)
+
+                        return (
+                          <div key={teacher.name} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {teacherPhoto ? (
+                              <img
+                                src={teacherPhoto}
+                                alt=""
+                                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
+                              />
+                            ) : (
+                              <span className="avatar small" aria-hidden="true">
+                                {teacher.name?.charAt(0) || 'T'}
+                              </span>
+                            )}
+                            <strong style={{ fontSize: '12px' }}>{teacher.name}</strong>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
 
                   {/* Plan & Expiry badge */}
                   <div style={{ padding: '10px 12px', background: isExpired ? '#fef2f2' : '#f8fdf0', border: '1px solid', borderColor: isExpired ? '#fca5a5' : 'var(--lime)', borderRadius: '4px', marginBottom: '16px', fontSize: '11px' }}>

@@ -54,10 +54,8 @@ async function connectKafka() {
         await kafkaProducer.connect();
         await kafkaConsumer.connect();
 
-        // Subscribe to relevant topics
+        // The in-process consumer currently persists live attendance events.
         await kafkaConsumer.subscribe({ topic: attendanceTopic, fromBeginning: false });
-        await kafkaConsumer.subscribe({ topic: paymentTopic, fromBeginning: false });
-        await kafkaConsumer.subscribe({ topic: auditLogTopic, fromBeginning: false });
 
         isKafkaReady = true;
         console.log("Kafka producer and consumer connected successfully.");
@@ -78,6 +76,10 @@ function getKafkaProducer() {
 
 function getKafkaConsumer() {
     return isKafkaReady ? kafkaConsumer : null;
+}
+
+function isKafkaConnected() {
+    return isKafkaReady;
 }
 
 function getAttendanceTopic() {
@@ -125,6 +127,7 @@ module.exports = {
     connectKafka,
     getKafkaProducer,
     getKafkaConsumer,
+    isKafkaConnected,
     getAttendanceTopic,
     getPaymentTopic,
     getAuditLogTopic,

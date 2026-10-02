@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
 import CourseStudentsModal from '../../components/CourseStudentsModal'
+import { mediaUrl } from '../../utils/mediaUrl'
 
 export default function TeacherCourses() {
   const { session } = useAuth()
@@ -42,7 +43,7 @@ export default function TeacherCourses() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '22px' }}>
           {courses.map((course) => {
-            const image = course.photo ? `http://localhost:8000/${course.photo}` : null
+            const image = mediaUrl(course.photo)
 
             return (
               <article key={course.course_id} className="course-card" style={{ display: 'flex', flexDirection: 'column' }}>

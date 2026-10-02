@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import TermsModal from './TermsModal'
+import Brand from './Brand'
 
 export default function Footer() {
   const [activeLegalTab, setActiveLegalTab] = useState(null)
@@ -22,12 +23,7 @@ export default function Footer() {
           
           {/* Col 1: Brand & Identity */}
           <div>
-            <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#ffffff', padding: '6px 14px', borderRadius: '4px', marginBottom: '16px', textDecoration: 'none' }}>
-              <img src="/logo.png" alt="UniSkills" style={{ height: '28px', width: 'auto' }} />
-              <span style={{ fontWeight: 800, fontSize: '19px', letterSpacing: '-0.5px', color: '#111827' }}>
-                Uni<span style={{ color: 'var(--orange)' }}>Skills</span>
-              </span>
-            </Link>
+            <Brand variant="wordmark" to="/" className="footer-wordmark" />
             <p style={{ fontSize: '13px', lineHeight: 1.7, color: '#9fa198', marginBottom: '20px' }}>
               A modern digital learning academy engineered for clarity, practical mastery, and career outcomes. Learn in public with leading mentors.
             </p>

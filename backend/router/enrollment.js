@@ -99,6 +99,7 @@ enrollmentRouter.get("/my-courses", authMiddleware, async (req, res) => {
         const courseIds = enrollments.map(e => e.course_id);
 
         const courseList = await Course.find({ course_id: { $in: courseIds } }).lean();
+        const teachers = await Teacher.find({}).select("name photo course_assigned").lean();
 
         const enrichedCourses = await Promise.all(courseList.map(async (course) => {
             const [lectureCount, assignmentCount, liveClasses] = await Promise.all([
@@ -108,10 +109,20 @@ enrollmentRouter.get("/my-courses", authMiddleware, async (req, res) => {
             ]);
 
             const enrollment = enrollments.find(e => e.course_id === course.course_id);
+            const courseKeys = [course.course_id, course.course_title].map(value => value.trim().toLowerCase());
+            const assignedTeachers = teachers
+                .filter(teacher => (teacher.course_assigned || []).some(assigned =>
+                    courseKeys.includes(String(assigned).trim().toLowerCase())
+                ))
+                .map(teacher => ({
+                    name: teacher.name,
+                    photo: teacher.photo ? teacher.photo.replace(/\\/g, "/") : null
+                }));
 
             return {
                 ...course,
                 photo: course.photo ? course.photo.replace(/\\/g, "/") : null,
+                assigned_teachers: assignedTeachers,
                 enrolled_at: enrollment ? enrollment.enrolled_at : null,
                 plan_type: enrollment ? enrollment.plan_type || "monthly" : "monthly",
                 plan_expiry: enrollment ? enrollment.plan_expiry : null,

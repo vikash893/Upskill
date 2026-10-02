@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
+import { mediaUrl } from '../utils/mediaUrl'
 import LiveClassModal from '../components/LiveClassModal'
 import AttendanceModal from '../components/AttendanceModal'
 
@@ -13,13 +14,13 @@ export default function LearningRoom() {
   const [course, setCourse] = useState(null)
   
   const initialTab = searchParams.get('tab') || 'lectures'
-  const [activeTab, setActiveTab] = useState(['lectures', 'assignments', 'live'].includes(initialTab) ? initialTab : 'lectures')
+  const [activeTab, setActiveTab] = useState(['lectures', 'assignments', 'live', 'announcements'].includes(initialTab) ? initialTab : 'lectures')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
     const tabParam = searchParams.get('tab')
-    if (tabParam && ['lectures', 'assignments', 'live'].includes(tabParam)) {
+    if (tabParam && ['lectures', 'assignments', 'live', 'announcements'].includes(tabParam)) {
       setActiveTab(tabParam)
     }
   }, [searchParams])
@@ -57,6 +58,17 @@ export default function LearningRoom() {
   const [savingRecording, setSavingRecording] = useState(false)
   const [selectedRecordedClass, setSelectedRecordedClass] = useState(null)
 
+  // Course Announcements State
+  const [courseAnnouncements, setCourseAnnouncements] = useState([])
+  const [showAddAnnouncement, setShowAddAnnouncement] = useState(false)
+  const [announcementDraft, setAnnouncementDraft] = useState({ title: '', message: '' })
+  const [announcementImageFile, setAnnouncementImageFile] = useState(null)
+  const [announcementImagePreview, setAnnouncementImagePreview] = useState(null)
+  const announcementFileInputRef = useRef(null)
+  const [savingAnnouncement, setSavingAnnouncement] = useState(false)
+  const [deletingAnnouncementId, setDeletingAnnouncementId] = useState(null)
+  const [announcementFeedback, setAnnouncementFeedback] = useState('')
+
   const isTeacherOrAdmin = session?.role === 'TEACHER' || session?.role === 'ADMIN'
 
   const getMediaUrl = (url) => {
@@ -89,10 +101,87 @@ export default function LearningRoom() {
       // Get live classes
       const liveData = await request(`/live-class/course/${courseId}`, { headers })
       setLiveClasses(liveData.classes || [])
+
+      // Get course announcements
+      const annData = await request('/announcements/mine', { headers }).catch(() => ({ announcements: [] }))
+      const filteredAnnouncements = (annData.announcements || []).filter(
+        (a) => a.target_type === 'course' && (a.course_id === courseId || a.course_title === courseData?.course?.course_title)
+      )
+      setCourseAnnouncements(filteredAnnouncements)
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleAnnouncementImageChange = (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setAnnouncementImageFile(file)
+      setAnnouncementImagePreview(URL.createObjectURL(file))
+    }
+  }
+
+  const handleClearAnnouncementImage = () => {
+    setAnnouncementImageFile(null)
+    setAnnouncementImagePreview(null)
+    if (announcementFileInputRef.current) announcementFileInputRef.current.value = ''
+  }
+
+  const handlePostCourseAnnouncement = async (e) => {
+    e.preventDefault()
+    setSavingAnnouncement(true)
+    setAnnouncementFeedback('')
+    try {
+      const fd = new FormData()
+      fd.append('title', announcementDraft.title)
+      fd.append('message', announcementDraft.message)
+      fd.append('target_type', 'course')
+      fd.append('course_id', courseId)
+      if (announcementImageFile) {
+        fd.append('image', announcementImageFile)
+      }
+
+      await request('/announcements', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.token}` },
+        body: fd,
+      })
+
+      setAnnouncementDraft({ title: '', message: '' })
+      handleClearAnnouncementImage()
+      setShowAddAnnouncement(false)
+      setAnnouncementFeedback('Announcement posted successfully! All enrolled students will be notified.')
+      fetchData()
+    } catch (err) {
+      setAnnouncementFeedback(`Error: ${err.message}`)
+    } finally {
+      setSavingAnnouncement(false)
+    }
+  }
+
+  const handleDeleteCourseAnnouncement = async (announcementId) => {
+    if (!window.confirm('Are you sure you want to delete this announcement?')) return
+    setDeletingAnnouncementId(announcementId)
+    try {
+      const headers = { Authorization: `Bearer ${session?.token}` }
+      await request(`/announcements/${announcementId}`, { method: 'DELETE', headers })
+      setCourseAnnouncements((prev) => prev.filter((a) => a._id !== announcementId))
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setDeletingAnnouncementId(null)
+    }
+  }
+
+  const handleMarkRead = async (announcementId) => {
+    try {
+      const headers = { Authorization: `Bearer ${session?.token}` }
+      await request(`/announcements/${announcementId}/read`, { method: 'POST', headers })
+      setCourseAnnouncements((prev) => prev.map((a) => a._id === announcementId ? { ...a, is_read: true } : a))
+    } catch (err) {
+      console.log(err)
     }
   }
 
@@ -337,9 +426,9 @@ export default function LearningRoom() {
   if (error) return <main><div className="empty-state" style={{ margin: '80px auto', maxWidth: '500px' }}>{error} <br/><Link to="/dashboard" className="text-button" style={{ marginTop: '10px', display: 'inline-block' }}>Back to Dashboard</Link></div></main>
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F0F6FF' }}>
+    <div className="learning-room" style={{ minHeight: '100vh', background: '#F0F6FF' }}>
       {/* Top Learning Bar */}
-      <header style={{ height: '70px', borderBottom: '1px solid var(--line)', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4vw' }}>
+      <header className="learning-room-header" style={{ height: '70px', borderBottom: '1px solid var(--line)', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4vw' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <button className="text-button" onClick={() => navigate('/dashboard')} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             ← <span>Back to Workspace</span>
@@ -352,11 +441,12 @@ export default function LearningRoom() {
         </div>
 
         {/* Tab Controls */}
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="learning-room-tabs" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {[
             { id: 'lectures', label: `Lectures (${lectures.length})` },
             { id: 'assignments', label: `Assignments (${assignments.length})` },
             { id: 'live', label: `Live Classes (${liveClasses.filter(c => c.status === 'live').length ? '● LIVE' : liveClasses.length})` },
+            { id: 'announcements', label: `Announcements (${courseAnnouncements.length})` },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -380,7 +470,7 @@ export default function LearningRoom() {
       </header>
 
       {/* MAIN LEARNING CONTENT */}
-      <main style={{ padding: '30px 4vw' }}>
+      <main className="learning-room-main" style={{ padding: '30px 4vw' }}>
         {/* ========================================================= */}
         {/* TAB 1: LECTURES & STUDY MODULES */}
         {/* ========================================================= */}
@@ -403,7 +493,7 @@ export default function LearningRoom() {
               <form onSubmit={handleAddLecture} style={{ padding: '25px', border: '1px solid var(--line)', background: '#FFFFFF', marginBottom: '30px', display: 'grid', gap: '14px' }}>
                 <p className="eyebrow">NEW LECTURE</p>
                 
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '15px' }}>
+                <div className="learning-room-grid" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '15px' }}>
                   <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)' }}>
                     Lecture Title *
                     <input required value={lectureForm.title} onChange={(e) => setLectureForm({ ...lectureForm, title: e.target.value })} style={{ padding: '10px', border: '1px solid var(--line)', background: 'white' }} />
@@ -466,7 +556,7 @@ export default function LearningRoom() {
             {lectures.length === 0 ? (
               <div className="empty-state">No lectures have been uploaded for this course yet.</div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '25px', alignItems: 'start' }}>
+              <div className="learning-room-grid" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '25px', alignItems: 'start' }}>
                 {/* Active Player / Content View */}
                 <div style={{ background: '#FFFFFF', border: '1px solid var(--line)', padding: '25px' }}>
                   {selectedLecture ? (
@@ -609,7 +699,7 @@ export default function LearningRoom() {
             {showAddAssignment && (
               <form onSubmit={handleAddAssignment} style={{ padding: '25px', border: '1px solid var(--line)', background: '#FFFFFF', marginBottom: '30px', display: 'grid', gap: '14px' }}>
                 <p className="eyebrow">NEW ASSIGNMENT</p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '15px' }}>
+                <div className="learning-room-grid" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '15px' }}>
                   <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)' }}>
                     Title *
                     <input required value={assignmentForm.title} onChange={(e) => setAssignmentForm({ ...assignmentForm, title: e.target.value })} style={{ padding: '10px', border: '1px solid var(--line)', background: 'white' }} />
@@ -800,7 +890,7 @@ export default function LearningRoom() {
             {showCreateLive && (
               <form onSubmit={handleCreateLive} style={{ padding: '25px', border: '1px solid var(--line)', background: '#FFFFFF', marginBottom: '30px', display: 'grid', gap: '14px' }}>
                 <p className="eyebrow">SCHEDULE LIVE CLASS</p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '15px' }}>
+                <div className="learning-room-grid" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '15px' }}>
                   <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)' }}>
                     Class Title *
                     <input required value={liveForm.title} onChange={(e) => setLiveForm({ ...liveForm, title: e.target.value })} style={{ padding: '10px', border: '1px solid var(--line)', background: 'white' }} />
@@ -1008,6 +1098,212 @@ export default function LearningRoom() {
                             🗑
                           </button>
                         )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* TAB 4: COURSE ANNOUNCEMENTS & BROADCAST NOTICES */}
+        {/* ========================================================= */}
+        {activeTab === 'announcements' && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+              <div>
+                <p className="eyebrow">COURSE NOTICES & BROADCASTS</p>
+                <h2 style={{ fontSize: '28px', letterSpacing: '-1.5px', margin: 0 }}>Announcements & Updates</h2>
+                <p style={{ fontSize: '13px', color: 'var(--muted)', margin: '4px 0 0' }}>
+                  Notices broadcast exclusively to enrolled students in {course?.course_title}.
+                </p>
+              </div>
+              {isTeacherOrAdmin && (
+                <button
+                  className="primary-button"
+                  style={{ background: 'var(--orange)', color: 'white', padding: '9px 18px', fontSize: '12px' }}
+                  onClick={() => setShowAddAnnouncement(!showAddAnnouncement)}
+                >
+                  {showAddAnnouncement ? 'Cancel' : '📢 Post Course Announcement'}
+                </button>
+              )}
+            </div>
+
+            {announcementFeedback && (
+              <div style={{ padding: '12px 16px', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', marginBottom: '18px', fontSize: '13px', borderRadius: '4px' }}>
+                {announcementFeedback}
+              </div>
+            )}
+
+            {/* Post Announcement Form for Teacher / Admin */}
+            {showAddAnnouncement && isTeacherOrAdmin && (
+              <form onSubmit={handlePostCourseAnnouncement} style={{ padding: '24px', border: '1px solid var(--line)', background: '#FFFFFF', marginBottom: '25px', display: 'grid', gap: '14px', borderRadius: '6px' }}>
+                <p className="eyebrow" style={{ color: 'var(--orange)', margin: 0 }}>NEW BROADCAST TO ENROLLED LEARNERS</p>
+                <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>
+                  Announcement Subject / Title *
+                  <input
+                    required
+                    placeholder="e.g. Schedule Change: Live Session moved to 6 PM"
+                    value={announcementDraft.title}
+                    onChange={(e) => setAnnouncementDraft({ ...announcementDraft, title: e.target.value })}
+                    style={{ padding: '11px', border: '1px solid var(--line)', background: 'white', fontSize: '13px' }}
+                  />
+                </label>
+                <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>
+                  Message Content *
+                  <textarea
+                    required
+                    rows={4}
+                    placeholder="Write detailed notes, study links, or assignment reminders..."
+                    value={announcementDraft.message}
+                    onChange={(e) => setAnnouncementDraft({ ...announcementDraft, message: e.target.value })}
+                    style={{ padding: '11px', border: '1px solid var(--line)', background: 'white', fontSize: '13px', fontFamily: 'inherit' }}
+                  />
+                </label>
+
+                {/* Attach Image in Classroom */}
+                <div style={{ display: 'grid', gap: '6px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>Attach Image (Optional)</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <input
+                      ref={announcementFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAnnouncementImageChange}
+                      style={{ padding: '8px', border: '1px solid var(--line)', background: 'white', fontSize: '12px' }}
+                    />
+                    {announcementImagePreview && (
+                      <button type="button" className="outline-button" onClick={handleClearAnnouncementImage} style={{ padding: '6px 12px', fontSize: '11px', color: '#b91c1c', borderColor: '#fca5a5' }}>
+                        Remove Image ✕
+                      </button>
+                    )}
+                  </div>
+                  {announcementImagePreview && (
+                    <div style={{ marginTop: '6px' }}>
+                      <img
+                        src={announcementImagePreview}
+                        alt="Preview"
+                        style={{ maxHeight: '160px', maxWidth: '100%', borderRadius: '4px', border: '1px solid var(--line)', objectFit: 'contain' }}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', flexWrap: 'wrap', gap: '10px' }}>
+                  <small style={{ color: 'var(--muted)', fontSize: '11px' }}>
+                    🔔 This will alert all {course?.course_title} students with an unread notification badge.
+                  </small>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button type="button" className="outline-button" onClick={() => { setShowAddAnnouncement(false); handleClearAnnouncementImage(); }} style={{ padding: '8px 16px', fontSize: '12px' }}>
+                      Cancel
+                    </button>
+                    <button type="submit" className="primary-button" disabled={savingAnnouncement} style={{ padding: '8px 18px', fontSize: '12px' }}>
+                      {savingAnnouncement ? 'Broadcasting...' : 'Publish Announcement'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
+
+            {/* List of Announcements */}
+            {courseAnnouncements.length === 0 ? (
+              <div className="empty-state" style={{ padding: '40px', background: 'white', border: '1px dashed var(--line)', textAlign: 'center' }}>
+                <p style={{ fontSize: '14px', color: 'var(--muted)', margin: 0 }}>No course announcements have been posted yet.</p>
+                {isTeacherOrAdmin && (
+                  <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '6px' }}>
+                    Use the button above to broadcast updates to your enrolled students.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: '14px' }}>
+                {courseAnnouncements.map((ann) => {
+                  const canDelete = session.role === 'ADMIN' || (session.role === 'TEACHER' && (ann.author_email?.toLowerCase() === session.email?.toLowerCase() || isTeacherOrAdmin))
+                  const isDeleting = deletingAnnouncementId === ann._id
+
+                  return (
+                    <div
+                      key={ann._id}
+                      style={{
+                        padding: '20px',
+                        background: '#FFFFFF',
+                        border: '1px solid var(--line)',
+                        borderLeft: ann.is_read ? '1px solid var(--line)' : '4px solid var(--orange)',
+                        borderRadius: '4px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span
+                            style={{
+                              width: '8px',
+                              height: '8px',
+                              borderRadius: '50%',
+                              background: ann.is_read ? '#9ca3af' : 'var(--orange)',
+                              display: 'inline-block',
+                            }}
+                          />
+                          <span style={{ font: '10px var(--mono)', color: 'var(--orange)', textTransform: 'uppercase', fontWeight: 700 }}>
+                            COURSE BROADCAST
+                          </span>
+                        </div>
+                        <time style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                          {new Date(ann.createdAt).toLocaleString()}
+                        </time>
+                      </div>
+
+                      <h3 style={{ fontSize: '17px', margin: '0 0 8px', color: 'var(--ink)' }}>{ann.title}</h3>
+                      <p style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.6, margin: '0 0 10px', whiteSpace: 'pre-wrap' }}>
+                        {ann.message}
+                      </p>
+
+                      {/* Announcement Image */}
+                      {ann.image && (
+                        <div style={{ margin: '10px 0 14px' }}>
+                          <img
+                            src={mediaUrl(ann.image)}
+                            alt={ann.title}
+                            style={{ maxWidth: '100%', maxHeight: '340px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--line)', cursor: 'pointer' }}
+                            onClick={() => window.open(mediaUrl(ann.image), '_blank')}
+                            title="Click to view full image"
+                          />
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid var(--line)', fontSize: '11px', color: 'var(--muted)', flexWrap: 'wrap', gap: '10px' }}>
+                        <span>Posted by <strong>{ann.author_name}</strong> ({ann.author_role === 'ADMIN' ? 'Administrator' : 'Instructor'})</span>
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                          {!ann.is_read && (
+                            <button
+                              type="button"
+                              className="text-button"
+                              onClick={() => handleMarkRead(ann._id)}
+                              style={{ fontSize: '12px' }}
+                            >
+                              Mark as read ✓
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              type="button"
+                              className="outline-button"
+                              onClick={() => handleDeleteCourseAnnouncement(ann._id)}
+                              disabled={isDeleting}
+                              style={{
+                                padding: '4px 10px',
+                                fontSize: '11px',
+                                color: '#b91c1c',
+                                borderColor: '#fca5a5',
+                                background: '#fef2f2',
+                              }}
+                              title="Delete this announcement"
+                            >
+                              {isDeleting ? 'Deleting...' : '🗑 Delete'}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )

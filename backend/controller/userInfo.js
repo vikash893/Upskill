@@ -1,4 +1,5 @@
 const User = require("../models/user");
+const { persistFile } = require("../config/cloudinary");
 
 const getAllUsers = async (req, res) => {
     try {
@@ -93,7 +94,7 @@ const updateUserByid = async (req, res) => {
         if (name) updateData.name = name;
         if (phone) updateData.phone = phone;
         if (req.file) {
-            updateData.photo = `uploads/${req.file.filename}`.replace(/\\/g, "/");
+            updateData.photo = await persistFile(req.file, "uniskill/avatars");
         }
 
         // Update user

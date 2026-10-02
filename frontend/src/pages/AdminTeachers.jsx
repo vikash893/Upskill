@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import AssignCourseModal from '../components/AssignCourseModal'
+import { mediaUrl } from '../utils/mediaUrl'
 
 export default function AdminTeachers() {
   const { session } = useAuth()
@@ -124,7 +125,7 @@ export default function AdminTeachers() {
         ) : (
           <div style={{ display: 'grid', gap: '14px' }}>
             {teachers.map((t) => {
-              const img = t.photo ? `http://localhost:8000/${t.photo.replace(/\\/g, '/')}` : null
+              const img = mediaUrl(t.photo)
               return (
                 <div key={t._id} style={{ display: 'grid', gridTemplateColumns: '50px 1fr auto', gap: '18px', alignItems: 'center', padding: '18px', border: '1px solid var(--line)', background: '#FFFFFF' }}>
                   {img ? (

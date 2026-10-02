@@ -1,6 +1,11 @@
 import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import Brand from './Brand'
+import MediaImage from './MediaImage'
+import ThemeToggle from './ThemeToggle'
+import ActivityStreak from './ActivityStreak'
+import AnnouncementBell from './AnnouncementBell'
 
 export default function Navbar({ onAuthOpen }) {
   const { session, logout } = useAuth()
@@ -14,21 +19,14 @@ export default function Navbar({ onAuthOpen }) {
     setMobileMenuOpen(false)
   }
 
-  const userPhoto = session?.photo ? (session.photo.startsWith('http') ? session.photo : `http://localhost:8000/${session.photo.replace(/\\/g, '/')}`) : null
   const userName = session?.name || session?.email || 'User'
+  const roleLabel = session?.role === 'ADMIN' ? 'Administrator' : session?.role === 'TEACHER' ? 'Teacher' : 'Student'
 
   return (
     <>
       <header className="site-header" id="top">
-        {/* Brand */}
-        <Link className="brand" to={session ? '/dashboard' : '/'} onClick={() => setMobileMenuOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-          <img src="/logo.png" alt="UniSkills" style={{ height: '36px', width: 'auto', display: 'block' }} />
-          <span style={{ fontWeight: 800, fontSize: '23px', letterSpacing: '-0.8px', color: 'var(--ink)' }}>
-            Uni<span style={{ color: 'var(--orange)' }}>Skills</span>
-          </span>
-        </Link>
+        <Brand variant="logo" to={session ? '/dashboard' : '/'} onClick={() => setMobileMenuOpen(false)} />
 
-        {/* Desktop Navigation */}
         <nav className="desktop-nav">
           {!session ? (
             <>
@@ -36,124 +34,98 @@ export default function Navbar({ onAuthOpen }) {
                 Courses
               </Link>
               <Link to="/about" className={location.pathname === '/about' ? 'active-nav-link' : ''}>
-                About Us
+                About
               </Link>
               <Link to="/contact" className={location.pathname === '/contact' ? 'active-nav-link' : ''}>
                 Contact
               </Link>
             </>
           ) : (
-            <>
-              <Link to="/dashboard" className={location.pathname.startsWith('/dashboard') || location.pathname.startsWith('/student') || location.pathname.startsWith('/teacher') || location.pathname.startsWith('/admin') ? 'active-nav-link' : ''}>
-                Workspace
-              </Link>
-              <Link to="/profile" className={location.pathname === '/profile' ? 'active-nav-link' : ''}>
-                Profile
-              </Link>
-            </>
+            <Link to="/dashboard" className="active-nav-link">
+              Workspace
+            </Link>
           )}
         </nav>
 
-        {/* Right CTA / Auth controls */}
-        <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <div className="header-actions">
+          <ThemeToggle />
+          {session && (
+            <>
+              <ActivityStreak />
+              <AnnouncementBell />
+            </>
+          )}
           {session ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <Link to="/profile" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
-                {userPhoto ? (
-                  <img
-                    src={userPhoto}
-                    alt={userName}
-                    style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--line)' }}
-                  />
-                ) : (
-                  <div className="avatar small" style={{ width: '34px', height: '34px' }}>
+            <div className="header-user">
+              <Link to="/dashboard" className="desktop-only workspace-chip">
+                Open workspace
+              </Link>
+              <MediaImage
+                src={session.photo}
+                alt={userName}
+                style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--line)' }}
+                fallback={
+                  <div className="avatar small" style={{ width: 34, height: 34 }}>
                     {userName.charAt(0).toUpperCase()}
                   </div>
-                )}
-                <span className="desktop-only" style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)' }}>
-                  {userName.split(' ')[0]}
-                </span>
-              </Link>
-              <button className="outline-button desktop-only" onClick={handleLogout} style={{ padding: '8px 14px', fontSize: '11px' }}>
-                Log out <span>↗</span>
+                }
+              />
+              <span className="public-user-meta">
+                <strong>{userName.split(' ')[0]}</strong>
+                <small>{roleLabel}</small>
+              </span>
+              <button className="outline-button desktop-only" type="button" onClick={handleLogout} style={{ padding: '8px 14px', fontSize: 12 }}>
+                Log out
               </button>
             </div>
           ) : (
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="outline-button" onClick={() => onAuthOpen('login')} style={{ padding: '9px 16px', fontSize: '12px' }}>
-                Sign In <span>↗</span>
-              </button>
-            </div>
+            <button className="outline-button" type="button" onClick={() => onAuthOpen('login')} style={{ padding: '9px 16px', fontSize: 12 }}>
+              Sign in
+            </button>
           )}
 
-          {/* Mobile Menu Toggle Button */}
           <button
             className="mobile-hamburger-btn"
+            type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Toggle Navigation Menu"
-            style={{
-              display: 'none',
-              background: 'none',
-              border: '1px solid var(--line)',
-              borderRadius: '6px',
-              padding: '6px 10px',
-              fontSize: '18px',
-              cursor: 'pointer',
-            }}
+            aria-label="Toggle navigation"
           >
             {mobileMenuOpen ? '✕' : '☰'}
           </button>
         </div>
       </header>
 
-      {/* Mobile Drawer Navigation */}
       {mobileMenuOpen && (
         <div className="mobile-drawer-overlay" onClick={() => setMobileMenuOpen(false)}>
           <div className="mobile-drawer-content" onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', paddingBottom: '14px', borderBottom: '1px solid var(--line)' }}>
-              <Link className="brand" to="/" onClick={() => setMobileMenuOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
-                <img src="/logo.png" alt="UniSkills" style={{ height: '30px', width: 'auto' }} />
-                <span style={{ fontWeight: 800, fontSize: '20px', letterSpacing: '-0.5px', color: 'var(--ink)' }}>
-                  Uni<span style={{ color: 'var(--orange)' }}>Skills</span>
-                </span>
-              </Link>
-              <button onClick={() => setMobileMenuOpen(false)} style={{ background: 'none', border: 0, fontSize: '20px', cursor: 'pointer' }}>
+            <div className="drawer-top">
+              <Brand variant="wordmark" to="/" onClick={() => setMobileMenuOpen(false)} />
+              <button type="button" className="drawer-close" onClick={() => setMobileMenuOpen(false)}>
                 ✕
               </button>
             </div>
 
-            <nav style={{ display: 'grid', gap: '14px', fontSize: '15px' }}>
+            <nav className="mobile-public-nav">
               {session ? (
                 <>
-                  <Link to="/dashboard" onClick={() => setMobileMenuOpen(false)} style={{ padding: '8px 0', borderBottom: '1px solid #eee' }}>
-                    💻 Student Workspace
+                  <Link to="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                    Go to workspace
                   </Link>
-                  <Link to="/profile" onClick={() => setMobileMenuOpen(false)} style={{ padding: '8px 0', borderBottom: '1px solid #eee' }}>
-                    👤 Profile & Settings
-                  </Link>
-                  <button className="primary-button" onClick={handleLogout} style={{ marginTop: '10px' }}>
-                    Log Out ↗
+                  <button className="primary-button" type="button" onClick={handleLogout}>
+                    Log out
                   </button>
                 </>
               ) : (
                 <>
-                  <Link to="/courses" onClick={() => setMobileMenuOpen(false)} style={{ padding: '8px 0', borderBottom: '1px solid #eee' }}>
-                    📚 Explore Courses
-                  </Link>
-                  <Link to="/about" onClick={() => setMobileMenuOpen(false)} style={{ padding: '8px 0', borderBottom: '1px solid #eee' }}>
-                    📖 About Academy
-                  </Link>
-                  <Link to="/contact" onClick={() => setMobileMenuOpen(false)} style={{ padding: '8px 0', borderBottom: '1px solid #eee' }}>
-                    💬 Contact & Support
-                  </Link>
-                  <div style={{ display: 'grid', gap: '10px', marginTop: '14px' }}>
-                    <button className="primary-button" onClick={() => { setMobileMenuOpen(false); onAuthOpen('login') }}>
-                      Sign In ↗
-                    </button>
-                    <button className="outline-button" onClick={() => { setMobileMenuOpen(false); onAuthOpen('register') }}>
-                      Create Account ↗
-                    </button>
-                  </div>
+                  <Link to="/courses" onClick={() => setMobileMenuOpen(false)}>Courses</Link>
+                  <Link to="/about" onClick={() => setMobileMenuOpen(false)}>About</Link>
+                  <Link to="/contact" onClick={() => setMobileMenuOpen(false)}>Contact</Link>
+                  <button className="primary-button" type="button" onClick={() => { setMobileMenuOpen(false); onAuthOpen('login') }}>
+                    Sign in
+                  </button>
+                  <button className="outline-button" type="button" onClick={() => { setMobileMenuOpen(false); onAuthOpen('register') }}>
+                    Join for free
+                  </button>
                 </>
               )}
             </nav>

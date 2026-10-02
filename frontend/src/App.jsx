@@ -19,7 +19,6 @@ import CourseDetail from './pages/CourseDetail'
 import LearningRoom from './pages/LearningRoom'
 import Profile from './pages/Profile'
 import Dashboard from './pages/Dashboard'
-import AdminLogin from './pages/AdminLogin'
 
 // Student Distinct Pages
 import StudentMyCourses from './pages/student/StudentMyCourses'
@@ -42,6 +41,12 @@ import AdminUsers from './pages/AdminUsers'
 import AdminPayments from './pages/AdminPayments'
 import AdminLogs from './pages/AdminLogs'
 import AdminInquiries from './pages/admin/AdminInquiries'
+import AdminCertificates from './pages/AdminCertificates'
+import StudentCertificates from './pages/student/StudentCertificates'
+import AdminTeam from './pages/admin/AdminTeam'
+import AdminForms from './pages/admin/AdminForms'
+import Forms from './pages/Forms'
+import Announcements from './pages/Announcements'
 
 function App() {
   const { session } = useAuth()
@@ -56,6 +61,7 @@ function App() {
         <Route path="/contact" element={<Navbar onAuthOpen={setAuthMode} />} />
         <Route path="/courses" element={<Navbar onAuthOpen={setAuthMode} />} />
         <Route path="/course/:courseId" element={<Navbar onAuthOpen={setAuthMode} />} />
+        <Route path="/forms" element={<Navbar onAuthOpen={setAuthMode} />} />
         <Route path="*" element={null} />
       </Routes>
 
@@ -82,9 +88,16 @@ function App() {
           }
         />
         <Route path="/course/:courseId" element={<CourseDetail onAuthOpen={setAuthMode} />} />
+        <Route
+          path="/forms"
+          element={
+            session?.role === 'STUDENT' ? <Navigate to="/student/forms" replace />
+              : session?.role === 'TEACHER' ? <Navigate to="/teacher/forms" replace />
+                : <Forms />
+          }
+        />
 
-        {/* HIDDEN PRIVATE ADMIN LOGIN ROUTE */}
-        <Route path="/admin" element={<AdminLogin />} />
+        <Route path="/admin" element={<Navigate to="/" replace />} />
 
         {/* FULLSCREEN LEARNING ROOM / CLASSROOM */}
         <Route
@@ -109,6 +122,7 @@ function App() {
           {/* Default Dashboard for all roles */}
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/announcements" element={<Announcements />} />
 
           {/* Student Dedicated Routes */}
           <Route
@@ -151,6 +165,22 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/student/certificates"
+            element={
+              <ProtectedRoute allowedRoles={['STUDENT']}>
+                <StudentCertificates />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/student/forms"
+            element={
+              <ProtectedRoute allowedRoles={['STUDENT']}>
+                <Forms />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Teacher Dedicated Routes */}
           <Route
@@ -182,6 +212,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['TEACHER', 'ADMIN']}>
                 <TeacherStudents />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/teacher/forms"
+            element={
+              <ProtectedRoute allowedRoles={['TEACHER']}>
+                <Forms />
               </ProtectedRoute>
             }
           />
@@ -243,6 +281,30 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/admin/certificates"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN']}>
+                <AdminCertificates />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/team"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN']}>
+                <AdminTeam />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/forms"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN']}>
+                <AdminForms />
+              </ProtectedRoute>
+            }
+          />
         </Route>
 
         {/* CATCH ALL */}
@@ -256,6 +318,7 @@ function App() {
         <Route path="/contact" element={<Footer />} />
         <Route path="/courses" element={<Footer />} />
         <Route path="/course/:courseId" element={<Footer />} />
+        <Route path="/forms" element={<Footer />} />
         <Route path="*" element={null} />
       </Routes>
 

@@ -7,6 +7,7 @@ const Enrollment = require("../models/enrollment");
 const upload = require("../config/multer");
 const authMiddleware = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
+const { persistFile } = require("../config/cloudinary");
 
 const lectureRouter = express.Router();
 
@@ -70,13 +71,12 @@ lectureRouter.post(
             // Determine video URL (local uploaded file vs network link)
             let finalVideoUrl = video_url || "";
             if (req.files && req.files.video_file && req.files.video_file.length > 0) {
-                finalVideoUrl = `uploads/${req.files.video_file[0].filename}`.replace(/\\/g, "/");
+                finalVideoUrl = await persistFile(req.files.video_file[0], "uniskill/lectures");
             }
 
-            // Determine notes file
             let notesPath = null;
             if (req.files && req.files.notes && req.files.notes.length > 0) {
-                notesPath = `uploads/${req.files.notes[0].filename}`.replace(/\\/g, "/");
+                notesPath = await persistFile(req.files.notes[0], "uniskill/notes");
             }
 
             const newLecture = new Lecture({

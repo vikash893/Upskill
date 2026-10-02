@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import TermsModal from './TermsModal'
+import Brand from './Brand'
+import { celebrate, prepareCelebrationAudio } from '../utils/celebration'
 
 export default function AuthModal({ mode, onClose }) {
   const [activeMode, setActiveMode] = useState(mode)
-  const [role, setRole] = useState('student')
   const [form, setForm] = useState({ name: '', phone: '', email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -23,6 +24,8 @@ export default function AuthModal({ mode, onClose }) {
 
   // Initialize Google Identity Services
   useEffect(() => {
+    prepareCelebrationAudio()
+
     const handleGoogleCallback = async (response) => {
       if (!response.credential) return
       setError('')
@@ -40,6 +43,7 @@ export default function AuthModal({ mode, onClose }) {
           photo: data.user?.photo || null,
         }
         login(session)
+        celebrate()
         onClose()
         navigate('/dashboard')
       } catch (gErr) {
@@ -111,6 +115,7 @@ export default function AuthModal({ mode, onClose }) {
 
   const submit = async (event) => {
     event.preventDefault()
+    prepareCelebrationAudio()
     setError('')
     setLoading(true)
     try {
@@ -119,22 +124,19 @@ export default function AuthModal({ mode, onClose }) {
         setActiveMode('login')
         setError('Account created. Sign in to continue.')
       } else {
-        const endpoint =
-          role === 'student' ? '/auth/login'
-          : role === 'teacher' ? '/teacher-login'
-          : '/admin-login'
-        const data = await request(endpoint, {
+        const data = await request('/auth/login', {
           method: 'POST',
           body: JSON.stringify({ email: form.email, password: form.password }),
         })
         const session = {
-          token: data.token || data.teacherToken,
-          role: role.toUpperCase(),
-          email: form.email,
-          name: data.teacher?.name || data.user?.name || '',
+          token: data.token,
+          role: data.user?.role || 'STUDENT',
+          email: data.user?.email || form.email,
+          name: data.user?.name || '',
           photo: data.user?.photo || null,
         }
         login(session)
+        celebrate()
         onClose()
         navigate('/dashboard')
       }
@@ -150,12 +152,7 @@ export default function AuthModal({ mode, onClose }) {
       <section className="auth-modal" style={{ maxWidth: '440px', width: '92vw' }}>
         <button className="close-button" onClick={onClose} aria-label="Close">×</button>
         
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-          <img src="/logo.png" alt="UniSkills" style={{ height: '26px', width: 'auto' }} />
-          <span style={{ fontWeight: 800, fontSize: '18px', letterSpacing: '-0.5px', color: 'var(--ink)' }}>
-            Uni<span style={{ color: 'var(--orange)' }}>Skills</span>
-          </span>
-        </div>
+        <Brand variant="logo" />
 
         <h2>{activeMode === 'login' ? 'Make room for your next skill.' : 'Start your learning story.'}</h2>
 
@@ -164,19 +161,8 @@ export default function AuthModal({ mode, onClose }) {
           <button className={activeMode === 'register' ? 'active' : ''} onClick={() => { setActiveMode('register'); setError('') }}>Create account</button>
         </div>
 
-        {activeMode === 'login' && (
-          <div className="role-picker">
-            {['student', 'teacher'].map((option) => (
-              <button key={option} className={role === option ? 'active' : ''} onClick={() => setRole(option)}>
-                {option}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* SINGLE UNIFIED GOOGLE SIGN IN BUTTON */}
-        {role === 'student' && (
-          <div style={{ margin: '18px 0 16px' }}>
+        {/* Google sign-in is available for student accounts. */}
+        <div style={{ margin: '18px 0 16px' }}>
             {/* If Google rendered iframe button is active, show only that */}
             <div
               ref={googleBtnRef}
@@ -229,8 +215,7 @@ export default function AuthModal({ mode, onClose }) {
               <span style={{ padding: '0 12px', font: 'var(--mono)' }}>or with email</span>
               <div style={{ flex: 1, height: '1px', background: 'var(--line)' }}></div>
             </div>
-          </div>
-        )}
+        </div>
 
         <form onSubmit={submit}>
           {activeMode === 'register' && (

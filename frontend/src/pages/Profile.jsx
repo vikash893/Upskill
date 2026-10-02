@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
+import { mediaUrl } from '../utils/mediaUrl'
+import { useActivity } from '../context/activityContextStore'
 
 export default function Profile() {
   const { session, logout, login } = useAuth()
+  const activity = useActivity()
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -13,16 +16,21 @@ export default function Profile() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
 
-  // Admin QR settings
-  const [qrSettings, setQrSettings] = useState({ upi_id: '', account_name: '', qr_code: null })
-  const [qrFile, setQrFile] = useState(null)
-  const [savingQr, setSavingQr] = useState(false)
-  const [qrMessage, setQrMessage] = useState('')
-
   // Admin Terms & Conditions
   const [termsForm, setTermsForm] = useState({ title: '', ip_logging_notice: '', content: '' })
   const [savingTerms, setSavingTerms] = useState(false)
   const [termsMessage, setTermsMessage] = useState('')
+
+  // Change Password
+  const [passwordForm, setPasswordForm] = useState({
+    current_password: '',
+    new_password: '',
+    confirm_password: '',
+  })
+  const [showPassword, setShowPassword] = useState(false)
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [passwordMessage, setPasswordMessage] = useState('')
+  const [passwordError, setPasswordError] = useState('')
 
   useEffect(() => {
     if (!session) return
@@ -38,16 +46,6 @@ export default function Profile() {
         .catch(() => {})
         .finally(() => setLoading(false))
     } else if (session.role === 'ADMIN') {
-      request('/payment/qr')
-        .then((data) => {
-          setQrSettings({
-            upi_id: data.upi_id || '',
-            account_name: data.account_name || '',
-            qr_code: data.qr_code || null,
-          })
-        })
-        .catch(() => {})
-
       request('/terms')
         .then((data) => {
           if (data.terms) {
@@ -105,44 +103,11 @@ export default function Profile() {
       setMessage('Profile and photo updated successfully!')
 
       // Sync session storage
-      if (session) {
-        const updatedSession = { ...session, name: data.user.name, photo: data.user.photo }
-        sessionStorage.setItem('uniskill_auth', JSON.stringify(updatedSession))
-      }
+      login({ ...session, name: data.user.name, photo: data.user.photo })
     } catch (err) {
       setMessage(err.message)
     } finally {
       setSaving(false)
-    }
-  }
-
-  const handleSaveQrSettings = async (e) => {
-    e.preventDefault()
-    setSavingQr(true)
-    setQrMessage('')
-    try {
-      const fd = new FormData()
-      fd.append('upi_id', qrSettings.upi_id)
-      fd.append('account_name', qrSettings.account_name)
-      if (qrFile) fd.append('qr_code', qrFile)
-
-      const data = await request('/admin/payment-settings', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session.token}` },
-        body: fd,
-      })
-
-      setQrSettings({
-        upi_id: data.upi_id,
-        account_name: data.account_name,
-        qr_code: data.qr_code,
-      })
-      setQrFile(null)
-      setQrMessage('Payment settings & QR code updated successfully!')
-    } catch (err) {
-      setQrMessage(err.message)
-    } finally {
-      setSavingQr(false)
     }
   }
 
@@ -175,6 +140,38 @@ export default function Profile() {
     }
   }
 
+  const handleChangePassword = async (e) => {
+    e.preventDefault()
+    setPasswordMessage('')
+    setPasswordError('')
+
+    if (passwordForm.new_password !== passwordForm.confirm_password) {
+      setPasswordError('New password and confirm password do not match.')
+      return
+    }
+
+    const regex = /^(?=.*[A-Z])(?=.*[!@#$%^&*]).{8,}$/
+    if (!regex.test(passwordForm.new_password)) {
+      setPasswordError('Password must be at least 8 characters long, contain at least 1 uppercase letter and 1 special symbol (!@#$%^&*).')
+      return
+    }
+
+    setPasswordSaving(true)
+    try {
+      const data = await request('/auth/change-password', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.token}` },
+        body: JSON.stringify(passwordForm),
+      })
+      setPasswordMessage(data.message || 'Password changed successfully!')
+      setPasswordForm({ current_password: '', new_password: '', confirm_password: '' })
+    } catch (err) {
+      setPasswordError(err.message || 'Failed to update password')
+    } finally {
+      setPasswordSaving(false)
+    }
+  }
+
   if (loading) {
     return (
       <main>
@@ -185,7 +182,13 @@ export default function Profile() {
     )
   }
 
-  const userAvatar = photoPreview || (profile?.photo ? (profile.photo.startsWith('http') ? profile.photo : `http://localhost:8000/${profile.photo.replace(/\\/g, '/')}`) : null)
+  const userAvatar = photoPreview || mediaUrl(profile?.photo)
+  const activityCells = activity.heatmap.length
+    ? [
+        ...Array(new Date(`${activity.heatmap[0].date}T00:00:00Z`).getUTCDay()).fill(null),
+        ...activity.heatmap,
+      ]
+    : []
 
   return (
     <main>
@@ -194,6 +197,34 @@ export default function Profile() {
         <h2 style={{ fontSize: '36px', letterSpacing: '-2px', marginBottom: '30px' }}>
           {profile?.name || session.email}
         </h2>
+
+        <section className="profile-activity-panel" aria-labelledby="profile-activity-title">
+          <div className="profile-activity-heading">
+            <div>
+              <p className="eyebrow">DAILY ACTIVITY</p>
+              <h3 id="profile-activity-title">Your learning streak</h3>
+              <p>One check-in per day keeps your streak growing.</p>
+            </div>
+            <div className="profile-streak-stats">
+              <span><strong>{activity.current_streak || 0}</strong><small>Current</small></span>
+              <span><strong>{activity.longest_streak || 0}</strong><small>Best</small></span>
+              <span><strong>{activity.active_days || 0}</strong><small>Active days</small></span>
+            </div>
+          </div>
+          <div className="profile-heatmap-scroll" role="img" aria-label="Daily activity heatmap for the past year">
+            <div className="profile-heatmap-grid">
+              {activityCells.map((day, index) => day ? (
+                <span
+                  className={`profile-heatmap-day ${day.active ? 'active' : ''}`}
+                  key={day.date}
+                  title={`${day.date}: ${day.active ? 'active' : 'no activity'}`}
+                  aria-hidden="true"
+                />
+              ) : <span className="profile-heatmap-day spacer" key={`spacer-${index}`} aria-hidden="true" />)}
+            </div>
+          </div>
+          <div className="profile-heatmap-legend"><span>Less</span><i className="profile-heatmap-day" /><i className="profile-heatmap-day active" /><span>More</span><span className="profile-activity-timezone">India time</span></div>
+        </section>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '30px', alignItems: 'start' }}>
           {/* Left Column: Profile Info & Form */}
@@ -321,67 +352,7 @@ export default function Profile() {
           <div>
             {/* ADMIN ONLY: QR Code & Payment Setup */}
             {session.role === 'ADMIN' ? (
-              <>
-              <div style={{ padding: '30px', border: '2px solid var(--orange)', background: '#fff9f4' }}>
-                <p className="eyebrow" style={{ color: 'var(--orange)', marginBottom: '8px' }}>PAYMENT QR & UPI CONFIG</p>
-                <h3 style={{ fontSize: '20px', margin: '0 0 10px' }}>Student Payment Scanner</h3>
-                <p style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: 1.6, marginBottom: '20px' }}>
-                  Upload your UPI QR code image and specify your UPI ID. This QR code will appear to students when they purchase paid courses.
-                </p>
-
-                {qrSettings.qr_code && (
-                  <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                    <p style={{ fontSize: '10px', font: 'var(--mono)', color: 'var(--muted)', marginBottom: '6px' }}>CURRENT ACTIVE QR CODE</p>
-                    <img
-                      src={`http://localhost:8000/${qrSettings.qr_code.replace(/\\/g, '/')}`}
-                      alt="Active QR"
-                      style={{ width: '150px', height: '150px', objectFit: 'contain', border: '1px solid var(--line)', background: 'white', padding: '6px' }}
-                    />
-                  </div>
-                )}
-
-                <form onSubmit={handleSaveQrSettings} style={{ display: 'grid', gap: '14px' }}>
-                  <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)' }}>
-                    UPI ID / VPA *
-                    <input
-                      required
-                      placeholder="e.g. uniskill@upi"
-                      value={qrSettings.upi_id}
-                      onChange={(e) => setQrSettings({ ...qrSettings, upi_id: e.target.value })}
-                      style={{ padding: '10px', border: '1px solid var(--line)', background: 'white' }}
-                    />
-                  </label>
-
-                  <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)' }}>
-                    Account Holder / Business Name
-                    <input
-                      placeholder="e.g. UniSkill Education Pvt Ltd"
-                      value={qrSettings.account_name}
-                      onChange={(e) => setQrSettings({ ...qrSettings, account_name: e.target.value })}
-                      style={{ padding: '10px', border: '1px solid var(--line)', background: 'white' }}
-                    />
-                  </label>
-
-                  <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)' }}>
-                    Upload QR Code Photo (PNG / JPG)
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => setQrFile(e.target.files[0])}
-                      style={{ padding: '8px', background: 'white', border: '1px solid var(--line)' }}
-                    />
-                  </label>
-
-                  {qrMessage && <p className="form-message" style={{ margin: 0 }}>{qrMessage}</p>}
-
-                  <button className="primary-button full-width" disabled={savingQr} type="submit" style={{ marginTop: '6px' }}>
-                    {savingQr ? 'Saving Settings...' : 'Update QR & Payment Settings'}
-                  </button>
-                </form>
-              </div>
-
-              {/* ADMIN ONLY: Terms & Conditions and Privacy Policy Editor */}
-              <div style={{ padding: '30px', border: '1px solid var(--line)', background: '#FFFFFF', marginTop: '25px' }}>
+              <div style={{ padding: '30px', border: '1px solid var(--line)', background: '#FFFFFF' }}>
                 <p className="eyebrow" style={{ color: 'var(--orange)', marginBottom: '8px' }}>LEGAL & AUDIT POLICY</p>
                 <h3 style={{ fontSize: '20px', margin: '0 0 10px' }}>Terms & Privacy Policy Editor</h3>
                 <p style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: 1.6, marginBottom: '20px' }}>
@@ -427,7 +398,6 @@ export default function Profile() {
                   </button>
                 </form>
               </div>
-              </>
             ) : (
               <div style={{ padding: '30px', border: '1px solid var(--line)', background: '#FFFFFF' }}>
                 <p className="eyebrow" style={{ marginBottom: '15px' }}>ACADEMIC STATUS</p>
@@ -447,8 +417,102 @@ export default function Profile() {
                 </div>
               </div>
             )}
+
+            {/* Change Password Card for all roles (STUDENT, TEACHER, ADMIN) */}
+            <div style={{ padding: '30px', border: '1px solid var(--line)', background: '#FFFFFF', marginTop: '25px' }}>
+              <p className="eyebrow" style={{ color: 'var(--orange)', marginBottom: '8px' }}>SECURITY & ACCESS</p>
+              <h3 style={{ fontSize: '20px', margin: '0 0 10px' }}>Change Password</h3>
+              <p style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: 1.6, marginBottom: '20px' }}>
+                Ensure your account is using a secure password. Minimum 8 characters with at least one uppercase letter and one special symbol.
+              </p>
+
+              <form onSubmit={handleChangePassword} style={{ display: 'grid', gap: '14px' }}>
+                <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)' }}>
+                  Current Password *
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    placeholder="Enter current password"
+                    value={passwordForm.current_password}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, current_password: e.target.value })}
+                    style={{ padding: '10px', border: '1px solid var(--line)', background: 'white' }}
+                  />
+                </label>
+
+                <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)' }}>
+                  New Password *
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    placeholder="At least 8 chars, 1 uppercase, 1 symbol"
+                    value={passwordForm.new_password}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
+                    style={{ padding: '10px', border: '1px solid var(--line)', background: 'white' }}
+                  />
+                </label>
+
+                <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)' }}>
+                  Confirm New Password *
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    placeholder="Confirm new password"
+                    value={passwordForm.confirm_password}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}
+                    style={{ padding: '10px', border: '1px solid var(--line)', background: 'white' }}
+                  />
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--muted)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={showPassword}
+                    onChange={(e) => setShowPassword(e.target.checked)}
+                  />
+                  Show passwords
+                </label>
+
+                {passwordError && (
+                  <div style={{ padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: '12px', borderRadius: '4px' }}>
+                    {passwordError}
+                  </div>
+                )}
+
+                {passwordMessage && (
+                  <div style={{ padding: '10px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', fontSize: '12px', borderRadius: '4px' }}>
+                    ✓ {passwordMessage}
+                  </div>
+                )}
+
+                <button className="primary-button full-width" disabled={passwordSaving} type="submit" style={{ marginTop: '6px' }}>
+                  {passwordSaving ? 'Updating Password...' : 'Update Password'}
+                </button>
+              </form>
+            </div>
           </div>
         </div>
+
+        <style>{`
+          .profile-activity-panel { margin: 0 0 28px; padding: 22px; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+          .profile-activity-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 18px; }
+          .profile-activity-heading .eyebrow { margin-bottom: 5px; font-size: 10px; }
+          .profile-activity-heading h3 { margin: 0; color: var(--ink); font-size: 18px; }
+          .profile-activity-heading p:not(.eyebrow) { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+          .profile-streak-stats { display: flex; gap: 22px; }
+          .profile-streak-stats span { display: grid; justify-items: end; gap: 2px; }
+          .profile-streak-stats strong { color: var(--ink); font-size: 20px; }
+          .profile-streak-stats small { color: var(--muted); font-size: 10px; }
+          .profile-heatmap-scroll { overflow-x: auto; padding: 6px 0 12px; }
+          .profile-heatmap-grid { display: grid; width: max-content; grid-auto-flow: column; grid-template-rows: repeat(7, 12px); grid-auto-columns: 12px; gap: 4px; }
+          .profile-heatmap-day { display: block; width: 12px; height: 12px; border: 1px solid var(--line); border-radius: 50%; background: #e5e7eb; transition: transform 0.15s ease, background-color 0.2s ease; cursor: pointer; }
+          .profile-heatmap-day:hover { transform: scale(1.4); z-index: 2; }
+          .profile-heatmap-day.active { border-color: #16a34a; background: #22c55e; box-shadow: 0 0 4px rgba(34, 197, 94, 0.4); }
+          .profile-heatmap-day.spacer { visibility: hidden; border-color: transparent; background: transparent; cursor: default; }
+          .profile-heatmap-legend { display: flex; justify-content: flex-end; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; margin-top: 6px; }
+          .profile-heatmap-legend .profile-heatmap-day { width: 10px; height: 10px; cursor: default; }
+          .profile-activity-timezone { margin-left: 12px; font-size: 10px; }
+          @media (max-width: 620px) { .profile-activity-panel { padding: 15px; } .profile-activity-heading { flex-direction: column; } .profile-streak-stats { width: 100%; justify-content: space-between; gap: 8px; } .profile-streak-stats span { justify-items: start; } }
+        `}</style>
       </section>
     </main>
   )

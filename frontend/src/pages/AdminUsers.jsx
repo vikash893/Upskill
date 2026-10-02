@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
+import { mediaUrl } from '../utils/mediaUrl'
 
 export default function AdminUsers() {
   const { session } = useAuth()
@@ -73,11 +74,7 @@ export default function AdminUsers() {
               <span></span><span>NAME</span><span>EMAIL</span><span>PHONE</span><span>ACTION</span>
             </div>
             {filtered.map((user) => {
-              const photoUrl = user.photo
-                ? user.photo.startsWith('http')
-                  ? user.photo
-                  : `http://localhost:8000/${user.photo.replace(/^[\/\\]+/, '').replace(/\\/g, '/')}`
-                : null
+              const photoUrl = mediaUrl(user.photo)
 
               return (
                 <div key={user._id} style={{ display: 'grid', gridTemplateColumns: '40px 1fr 1.2fr 0.8fr auto', gap: '12px', alignItems: 'center', padding: '14px 18px', borderBottom: '1px solid var(--line)', fontSize: '13px' }}>

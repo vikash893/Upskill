@@ -119,12 +119,8 @@ async function publishAttendanceEvent(event) {
             }]
         });
     } catch (error) {
-        if (event.event_type === "joined") {
-            const redis = getRedisClient();
-            if (redis) await redis.del(redisPresenceKey(event.class_id, event.student_email));
-            else activeStudents.delete(`${event.class_id}:${event.student_email}`);
-        }
-        throw error;
+        console.error("Kafka attendance publish failed; persisting directly:", error.message);
+        await saveAttendanceEvent(event);
     }
 }
 

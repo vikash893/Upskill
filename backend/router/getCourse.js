@@ -1,5 +1,6 @@
 const express = require("express");
 const Course = require("../models/courses");
+const Teacher = require("../models/teacher");
 const { getCache, setCache } = require("../config/redis");
 
 const getCourseRouter = express.Router();
@@ -20,7 +21,7 @@ getCourseRouter.get(
 
             const allCourses = await Course.find({})
                 .select(
-                    "course_id course_title course_description course_amount monthly_amount yearly_amount pricing_period course_type photo discount discount_time coupon_code coupon_code_time coupon_discount createdAt"
+                    "course_id course_title course_description course_amount monthly_amount yearly_amount pricing_period course_type photo discount discount_time coupons createdAt"
                 )
                 .sort({ createdAt: -1 })
                 .lean();
@@ -111,6 +112,17 @@ getCourseRouter.get(
                 });
             }
 
+            const teachers = await Teacher.find({}).select("name photo course_assigned").lean();
+            const courseKeys = [course.course_id, course.course_title].map(value => value.trim().toLowerCase());
+            const assignedTeachers = teachers
+                .filter(teacher => (teacher.course_assigned || []).some(assigned =>
+                    courseKeys.includes(String(assigned).trim().toLowerCase())
+                ))
+                .map(teacher => ({
+                    name: teacher.name,
+                    photo: teacher.photo ? teacher.photo.replace(/\\/g, "/") : null
+                }));
+
             const currentDate = new Date();
             let discountActive = false;
             let actualAmount = course.course_amount || 0;
@@ -143,6 +155,7 @@ getCourseRouter.get(
                     course_type: course.course_type,
                     pricing_period: course.pricing_period || "both",
                     photo: course.photo ? course.photo.replace(/\\/g, "/") : null,
+                    assigned_teachers: assignedTeachers,
                     actual_amount: actualAmount,
                     monthly_amount: monthlyAmount,
                     yearly_amount: yearlyAmount,
@@ -152,9 +165,9 @@ getCourseRouter.get(
                     discount_amount: Math.round(discountAmount),
                     final_amount: Math.round(finalAmount),
                     has_active_coupon: Boolean(
-                        course.coupon_code &&
-                        course.coupon_code_time &&
-                        currentDate < new Date(course.coupon_code_time)
+                        (course.coupons || []).some(
+                            (cp) => cp.expires_at && currentDate < new Date(cp.expires_at)
+                        )
                     )
                 }
             };
@@ -197,33 +210,35 @@ getCourseRouter.post(
             }
 
             const currentDate = new Date();
+            const inputCode = coupon_code.trim().toUpperCase();
 
-            if (
-                !course.coupon_code ||
-                course.coupon_code.trim().toUpperCase() !== coupon_code.trim().toUpperCase()
-            ) {
+            const matchedCoupon = (course.coupons || []).find(
+                (cp) => cp.code && cp.code.trim().toUpperCase() === inputCode
+            );
+
+            if (!matchedCoupon) {
                 return res.status(400).json({
                     error: "Invalid coupon code"
                 });
             }
 
             if (
-                course.coupon_code_time &&
-                currentDate > new Date(course.coupon_code_time)
+                matchedCoupon.expires_at &&
+                currentDate > new Date(matchedCoupon.expires_at)
             ) {
                 return res.status(400).json({
                     error: "Coupon code has expired"
                 });
             }
 
-            const couponDiscount = course.coupon_discount || 0;
+            const couponDiscount = matchedCoupon.discount || 0;
             const couponDiscountAmount = (course.course_amount * couponDiscount) / 100;
             const finalAmountWithCoupon = Math.max(0, course.course_amount - couponDiscountAmount);
 
             return res.status(200).json({
                 message: "Coupon applied successfully!",
                 valid: true,
-                coupon_code: course.coupon_code,
+                coupon_code: matchedCoupon.code,
                 coupon_discount: couponDiscount,
                 discount_amount: Math.round(couponDiscountAmount),
                 final_amount: Math.round(finalAmountWithCoupon)

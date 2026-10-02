@@ -1,13 +1,22 @@
 const bcrypt = require("bcryptjs");
 const User = require("../models/user");
+const Teacher = require("../models/teacher");
+const Admin = require("../models/admin");
 const jwt = require("jsonwebtoken");
+const { persistFile } = require("../config/cloudinary");
+
+const emailFilterFor = (email) => {
+    const escapedEmail = email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return { email: { $regex: `^${escapedEmail}$`, $options: "i" } };
+};
 
 const userRegister = async (req, res) => {
     try {
         const { name, phone, email, password } = req.body;
+        const normalizedEmail = String(email || "").trim().toLowerCase();
 
         // Check required fields
-        if (!name || !phone || !email || !password) {
+        if (!name || !phone || !normalizedEmail || !password) {
             return res.status(400).json({
                 error: "All fields are required"
             });
@@ -30,17 +39,20 @@ const userRegister = async (req, res) => {
             });
         }
 
-        // Check existing user
-        const userExist = await User.findOne({ email });
+        const emailFilter = emailFilterFor(normalizedEmail);
+        const [userExist, teacherExist, adminExist] = await Promise.all([
+            User.findOne(emailFilter),
+            Teacher.findOne(emailFilter),
+            Admin.findOne(emailFilter)
+        ]);
 
-        if (userExist) {
+        if (userExist || teacherExist || adminExist) {
             return res.status(409).json({
-                error: "User already exists"
+                error: "An account with this email already exists."
             });
         }
 
-        // Get uploaded photo
-        const photo = req.file ? req.file.path : null;
+        const photo = req.file ? await persistFile(req.file, "uniskill/avatars") : null;
 
         // Hash password
         const hashPassword = await bcrypt.hash(password, 10);
@@ -48,7 +60,7 @@ const userRegister = async (req, res) => {
         // Create user
         const newUser = new User({
             name,
-            email,
+            email: normalizedEmail,
             phone,
             password: hashPassword,
             photo
@@ -77,54 +89,74 @@ const userlogin = async (req, res) => {
         const { email, password } = req.body;
 
         if (!email || !password) {
-            return res.status(400).json({
-                error: "All feilds are required"
-            })
+            return res.status(400).json({ error: "Email and password are required." });
         }
 
-        const userExist = await User.findOne({ email });
+        const normalizedEmail = String(email).trim().toLowerCase();
+        const emailFilter = emailFilterFor(normalizedEmail);
+        const [admins, teachers, students] = await Promise.all([
+            Admin.find(emailFilter).limit(2),
+            Teacher.find(emailFilter).limit(2),
+            User.find(emailFilter).limit(2)
+        ]);
 
-        if (!userExist) {
-            return res.status(400).json({
-                error: "user not exist register first"
-            })
+        const accounts = [
+            ...admins.map(account => ({ account, role: "ADMIN" })),
+            ...teachers.map(account => ({ account, role: "TEACHER" })),
+            ...students.map(account => ({ account, role: "STUDENT" }))
+        ];
+
+        const matchedAccounts = await Promise.all(accounts.map(async candidate => ({
+            ...candidate,
+            passwordMatches: candidate.account.password
+                ? await bcrypt.compare(password, candidate.account.password)
+                : false
+        })));
+        const validAccounts = matchedAccounts.filter(candidate => candidate.passwordMatches);
+
+        if (validAccounts.length !== 1) {
+            return res.status(401).json({ error: "Invalid email or password." });
         }
 
-
-        const checkpassword = await bcrypt.compare(password, userExist.password);
-
-        if (!checkpassword) {
-            return res.status(400).json({
-                error: "Wrong email or password"
-            })
+        const { account, role } = validAccounts[0];
+        const tokenPayload = {
+            id: account._id.toString(),
+            email: account.email,
+            name: account.name,
+            role
+        };
+        if (role === "STUDENT") {
+            tokenPayload.userId = account._id.toString();
+            tokenPayload.photo = account.photo;
+        } else if (role === "TEACHER") {
+            tokenPayload.teacherId = account._id.toString();
+        } else {
+            tokenPayload.adminId = account._id.toString();
         }
 
         const token = jwt.sign(
-            {
-                userId: userExist._id.toString(),
-                id: userExist._id.toString(),
-                email: userExist.email,
-                name: userExist.name,
-                role: "STUDENT",
-                photo: userExist.photo
-            },
-            process.env.JWT_SECRET,
-            {
-                expiresIn: "7d"
-            }
+            tokenPayload,
+            process.env.JWT_SECRET || "uniskill_2026_secret",
+            { expiresIn: "7d" }
         );
 
-        res.status(200).json({
-            message: "User logged in successfully",
-            token: token,
+        res.locals.auditIdentity = {
+            email: account.email,
+            name: account.name,
+            role
+        };
+
+        return res.status(200).json({
+            message: "Login successful.",
+            token,
             user: {
-                _id: userExist._id,
-                name: userExist.name,
-                email: userExist.email,
-                role: "STUDENT",
-                photo: userExist.photo
+                _id: account._id,
+                name: account.name,
+                email: account.email,
+                role,
+                photo: role === "STUDENT" ? account.photo : role === "TEACHER" ? account.photo : null
             }
-        })
+        });
     } catch (error) {
         console.log(error);
         return res.status(500).json({
@@ -141,71 +173,55 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const googleAuth = async (req, res) => {
     try {
-        const { credential, email: clientEmail, name: clientName, photo: clientPhoto, google_id: clientGoogleId } = req.body;
+        const { credential } = req.body;
+        const clientId = process.env.GOOGLE_CLIENT_ID;
 
-        let email = clientEmail;
-        let name = clientName;
-        let photo = clientPhoto;
-        let google_id = clientGoogleId;
-
-        // If Google Identity Services JWT credential is provided
-        if (credential) {
-            try {
-                const clientId = process.env.GOOGLE_CLIENT_ID;
-                if (clientId && clientId !== "YOUR_GOOGLE_CLIENT_ID_HERE") {
-                    const ticket = await googleClient.verifyIdToken({
-                        idToken: credential,
-                        audience: clientId
-                    });
-                    const payload = ticket.getPayload();
-                    email = payload.email;
-                    name = payload.name;
-                    photo = payload.picture;
-                    google_id = payload.sub;
-                } else {
-                    // Fallback parse JWT payload safely
-                    const parts = credential.split(".");
-                    if (parts.length === 3) {
-                        const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf8"));
-                        email = payload.email;
-                        name = payload.name;
-                        photo = payload.picture;
-                        google_id = payload.sub;
-                    }
-                }
-            } catch (verErr) {
-                console.error("Google Token Verification:", verErr.message);
-                // Fallback decode payload safely
-                const parts = credential.split(".");
-                if (parts.length === 3) {
-                    const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf8"));
-                    email = payload.email;
-                    name = payload.name;
-                    photo = payload.picture;
-                    google_id = payload.sub;
-                }
-            }
+        if (!credential) {
+            return res.status(400).json({ error: "A Google credential is required." });
         }
 
-        if (!email) {
-            return res.status(400).json({ error: "Could not retrieve verified email from Google" });
+        if (!clientId || clientId === "YOUR_GOOGLE_CLIENT_ID_HERE") {
+            return res.status(503).json({ error: "Google sign-in is not configured on the server." });
         }
 
-        email = email.toLowerCase().trim();
+        let payload;
+        try {
+            const ticket = await googleClient.verifyIdToken({
+                idToken: credential,
+                audience: clientId
+            });
+            payload = ticket.getPayload();
+        } catch (verificationError) {
+            return res.status(401).json({ error: "The Google credential is invalid or expired." });
+        }
 
-        let user = await User.findOne({ email });
+        if (!payload?.email || !payload.email_verified) {
+            return res.status(401).json({ error: "Google must verify the account email." });
+        }
+
+        const email = payload.email.toLowerCase().trim();
+        const emailFilter = emailFilterFor(email);
+        const [adminAccount, teacherAccount] = await Promise.all([
+            Admin.findOne(emailFilter),
+            Teacher.findOne(emailFilter)
+        ]);
+        if (adminAccount || teacherAccount) {
+            return res.status(403).json({ error: "Use email and password to sign in to this account." });
+        }
+
+        let user = await User.findOne(emailFilter);
 
         if (user) {
-            if (!user.google_id && google_id) user.google_id = google_id;
-            if (!user.photo && photo) user.photo = photo;
+            if (!user.google_id && payload.sub) user.google_id = payload.sub;
+            if (!user.photo && payload.picture) user.photo = payload.picture;
             await user.save();
         } else {
             user = new User({
-                name: name || email.split("@")[0],
+                name: payload.name || email.split("@")[0],
                 email,
                 phone: "",
-                photo: photo || null,
-                google_id: google_id || null,
+                photo: payload.picture || null,
+                google_id: payload.sub || null,
                 auth_provider: "google",
                 password: null
             });
@@ -225,8 +241,14 @@ const googleAuth = async (req, res) => {
             { expiresIn: "7d" }
         );
 
+        res.locals.auditIdentity = {
+            email: user.email,
+            name: user.name,
+            role: "STUDENT"
+        };
+
         return res.status(200).json({
-            message: "Google login successful",
+            message: "Login successful.",
             token,
             user: {
                 _id: user._id,
@@ -237,9 +259,77 @@ const googleAuth = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error("GOOGLE AUTH ERROR:", error);
-        return res.status(500).json({ error: error.message || "Failed to authenticate with Google" });
+        console.log(error);
+        return res.status(500).json({
+            error: "Internal server error"
+        });
     }
 };
 
-module.exports = { userRegister, userlogin, googleAuth };
+const changePassword = async (req, res) => {
+    try {
+        const { old_password, current_password, new_password, confirm_password } = req.body;
+        const currentPassword = old_password || current_password || "";
+        const newPassword = new_password || "";
+        const confirmPassword = confirm_password || newPassword;
+
+        if (!newPassword) {
+            return res.status(400).json({ error: "New password is required." });
+        }
+
+        if (confirmPassword !== newPassword) {
+            return res.status(400).json({ error: "New password and confirm password do not match." });
+        }
+
+        const passwordRegex = /^(?=.*[A-Z])(?=.*[!@#$%^&*]).{8,}$/;
+        if (!passwordRegex.test(newPassword)) {
+            return res.status(400).json({
+                error: "New password must be at least 8 characters long, contain at least one uppercase letter and one special character (!@#$%^&*)."
+            });
+        }
+
+        const email = String(req.user.email || "").toLowerCase().trim();
+        const role = String(req.user.role || "").toUpperCase();
+        const emailFilter = emailFilterFor(email);
+
+        let account = null;
+        if (role === "ADMIN") {
+            account = await Admin.findOne(emailFilter);
+        } else if (role === "TEACHER") {
+            account = await Teacher.findOne(emailFilter);
+        } else {
+            account = await User.findOne(emailFilter);
+        }
+
+        if (!account) {
+            // Fallback search in all 3 models if role not matched
+            account = await User.findOne(emailFilter) || await Teacher.findOne(emailFilter) || await Admin.findOne(emailFilter);
+        }
+
+        if (!account) {
+            return res.status(404).json({ error: "Account not found." });
+        }
+
+        // If account has an existing password, verify current password
+        if (account.password) {
+            if (!currentPassword) {
+                return res.status(400).json({ error: "Current password is required." });
+            }
+            const isMatch = await bcrypt.compare(currentPassword, account.password);
+            if (!isMatch) {
+                return res.status(400).json({ error: "Current password is incorrect." });
+            }
+        }
+
+        const hashPassword = await bcrypt.hash(newPassword, 10);
+        account.password = hashPassword;
+        await account.save();
+
+        return res.status(200).json({ message: "Password updated successfully!" });
+    } catch (error) {
+        console.error("CHANGE PASSWORD ERROR:", error);
+        return res.status(500).json({ error: "Internal server error while changing password." });
+    }
+};
+
+module.exports = { userRegister, userlogin, googleAuth, changePassword };

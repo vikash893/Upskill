@@ -2,6 +2,24 @@ const Redis = require("ioredis");
 
 let redisClient = null;
 let isConnected = false;
+const memoryCache = new Map();
+
+function getMemoryValue(key) {
+    const entry = memoryCache.get(key);
+    if (!entry) return null;
+    if (entry.expiresAt <= Date.now()) {
+        memoryCache.delete(key);
+        return null;
+    }
+    return entry.value;
+}
+
+function setMemoryValue(key, value, ttlSeconds) {
+    memoryCache.set(key, {
+        value,
+        expiresAt: Date.now() + Math.max(1, ttlSeconds) * 1000
+    });
+}
 
 async function connectRedis() {
     const redisUrl = process.env.REDIS_URL;
@@ -65,55 +83,64 @@ function getRedisClient() {
 async function getCache(key) {
     try {
         const client = getRedisClient();
-        if (!client) return null;
-        const data = await client.get(key);
-        return data ? JSON.parse(data) : null;
+        if (client) {
+            const data = await client.get(key);
+            if (data) return JSON.parse(data);
+        }
     } catch (err) {
         console.error(`Redis get error for key "${key}":`, err.message);
-        return null;
     }
+    return getMemoryValue(key);
 }
 
 // Fast cache setter with TTL in seconds
 async function setCache(key, value, ttlSeconds = 300) {
     try {
         const client = getRedisClient();
-        if (!client) return false;
-        await client.set(key, JSON.stringify(value), "EX", ttlSeconds);
-        return true;
+        if (client) {
+            await client.set(key, JSON.stringify(value), "EX", ttlSeconds);
+            return true;
+        }
     } catch (err) {
         console.error(`Redis set error for key "${key}":`, err.message);
-        return false;
     }
+    setMemoryValue(key, value, ttlSeconds);
+    return true;
 }
 
 // Cache deletion
 async function delCache(key) {
     try {
         const client = getRedisClient();
-        if (!client) return false;
-        await client.del(key);
-        return true;
+        if (client) await client.del(key);
     } catch (err) {
         console.error(`Redis del error for key "${key}":`, err.message);
-        return false;
     }
+    memoryCache.delete(key);
+    return true;
 }
 
 // Cache deletion by prefix pattern (e.g. "courses:*")
 async function delByPrefix(prefix) {
     try {
         const client = getRedisClient();
-        if (!client) return false;
-        const keys = await client.keys(`${prefix}*`);
-        if (keys && keys.length > 0) {
-            await client.del(...keys);
+        if (client) {
+            const stream = client.scanStream({ match: `${prefix}*`, count: 250 });
+            for await (const keys of stream) {
+                if (keys.length) await client.unlink(...keys);
+            }
         }
-        return true;
     } catch (err) {
         console.error(`Redis delByPrefix error for prefix "${prefix}":`, err.message);
-        return false;
     }
+    for (const key of memoryCache.keys()) {
+        if (key.startsWith(prefix)) memoryCache.delete(key);
+    }
+    return true;
+}
+
+function isRedisConnected() {
+    return isConnected;
 }
 
 async function closeRedis() {
@@ -124,11 +151,13 @@ async function closeRedis() {
         redisClient = null;
         isConnected = false;
     }
+    memoryCache.clear();
 }
 
 module.exports = {
     connectRedis,
     getRedisClient,
+    isRedisConnected,
     getCache,
     setCache,
     delCache,

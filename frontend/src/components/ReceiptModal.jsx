@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { mediaUrl } from '../utils/mediaUrl'
 
 export default function ReceiptModal({ receipt, onClose }) {
   if (!receipt) return null
@@ -7,9 +8,7 @@ export default function ReceiptModal({ receipt, onClose }) {
     window.print()
   }
 
-  const receiptImg = receipt.receipt_photo
-    ? `http://localhost:8000/${receipt.receipt_photo.replace(/\\/g, '/')}`
-    : null
+  const receiptImg = mediaUrl(receipt.receipt_photo)
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>

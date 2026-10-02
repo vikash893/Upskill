@@ -3,6 +3,8 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import PaymentModal from '../components/PaymentModal'
+import { mediaUrl } from '../utils/mediaUrl'
+import { celebrate, prepareCelebrationAudio } from '../utils/celebration'
 
 export default function CourseDetail({ onAuthOpen }) {
   const { courseId } = useParams()
@@ -45,13 +47,14 @@ export default function CourseDetail({ onAuthOpen }) {
       return
     }
 
+    prepareCelebrationAudio()
     setEnrollingFree(true)
     try {
       await request(`/enroll/free/${courseId}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.token}` },
       })
-      alert('Congratulations! You are now enrolled in this course.')
+      celebrate()
       setIsEnrolled(true)
       navigate(`/learning/${courseId}`)
     } catch (err) {
@@ -65,7 +68,7 @@ export default function CourseDetail({ onAuthOpen }) {
   if (error) return <main><section className="content-section"><div className="empty-state">{error}</div></section></main>
   if (!course) return <main><section className="content-section"><div className="empty-state">Course not found.</div></section></main>
 
-  const image = course.photo ? `http://localhost:8000/${course.photo.replace(/\\/g, '/')}` : null
+  const image = mediaUrl(course.photo)
 
   // Monthly vs Yearly prices
   const monthlyPrice = course.final_monthly_amount || course.monthly_amount || course.final_amount || course.actual_amount || 0
@@ -111,6 +114,13 @@ export default function CourseDetail({ onAuthOpen }) {
             <p className="eyebrow">CURATED TRACK</p>
             <h2 style={{ fontSize: 'clamp(30px, 4vw, 42px)', letterSpacing: '-2px', marginBottom: '14px' }}>{course.course_title}</h2>
             <p style={{ color: 'var(--muted)', lineHeight: 1.7, fontSize: '15px', marginBottom: '22px' }}>{course.course_description}</p>
+
+            {course.assigned_teachers?.length > 0 && (
+              <p style={{ fontSize: '13px', marginBottom: '22px' }}>
+                Instructor{course.assigned_teachers.length > 1 ? 's' : ''}:{' '}
+                <strong>{course.assigned_teachers.map((teacher) => teacher.name).join(', ')}</strong>
+              </p>
+            )}
 
             {/* Badges */}
             <div style={{ display: 'flex', gap: '10px', marginBottom: '25px', flexWrap: 'wrap' }}>

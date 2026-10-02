@@ -6,9 +6,12 @@ const Admin = require('../models/admin');
 const Teacher = require('../models/teacher');
 const Course = require('../models/courses');
 const Enrollment = require('../models/enrollment');
+const User = require('../models/user');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { authRateLimit } = require('../middleware/rateLimit');
+const { persistFile } = require('../config/cloudinary');
+const { delByPrefix } = require('../config/redis');
 
 const teacherRouter = express.Router();
 
@@ -22,8 +25,13 @@ teacherRouter.post("/add-teacher", upload.single("photo"), authMiddleware, requi
             });
         }
 
-        const teacherExist = await Teacher.findOne({ email: email.toLowerCase().trim() });
-        if (teacherExist) {
+        const normalizedEmail = email.toLowerCase().trim();
+        const [teacherExist, userExist, adminExist] = await Promise.all([
+            Teacher.findOne({ email: normalizedEmail }),
+            User.findOne({ email: normalizedEmail }),
+            Admin.findOne({ email: normalizedEmail })
+        ]);
+        if (teacherExist || userExist || adminExist) {
             return res.status(400).json({
                 error: "Teacher with this email already exists"
             });
@@ -46,11 +54,11 @@ teacherRouter.post("/add-teacher", upload.single("photo"), authMiddleware, requi
             }
         }
 
-        const photoPath = req.file ? `uploads/${req.file.filename}`.replace(/\\/g, "/") : "";
+        const photoPath = req.file ? await persistFile(req.file, "uniskill/teachers") : "";
 
         const newTeacher = new Teacher({
             name,
-            email: email.toLowerCase().trim(),
+            email: normalizedEmail,
             phone,
             photo: photoPath,
             course_assigned: assigned,
@@ -202,6 +210,16 @@ teacherRouter.patch("/assign-courses/:teacherId", authMiddleware, requireRole("A
 
         if (!updatedTeacher) {
             return res.status(404).json({ error: "Teacher not found" });
+        }
+
+        try {
+            await Promise.all([
+                delByPrefix("cache:student:"),
+                delByPrefix("cache:course:"),
+                delByPrefix("cache:courses:")
+            ]);
+        } catch (error) {
+            console.log("COURSE ASSIGNMENT CACHE INVALIDATION ERROR:", error);
         }
 
         return res.status(200).json({

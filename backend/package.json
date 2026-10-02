@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.11.0",
     "compression": "^1.8.2",
     "cors": "^2.8.6",
     "dotenv": "^18.0.3",
@@ -22,6 +23,7 @@
     "kafkajs": "^2.2.4",
     "mongoose": "^9.10.2",
     "multer": "^2.4.0",
+    "pdfkit": "^0.20.2",
     "rate-limiter-flexible": "^11.2.1",
     "razorpay": "^2.9.8"
   }

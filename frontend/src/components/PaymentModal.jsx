@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
+import Brand from './Brand'
+import { celebrate, prepareCelebrationAudio } from '../utils/celebration'
 
 export default function PaymentModal({ course, initialPlan = 'monthly', onClose, onSuccess }) {
   const { session } = useAuth()
@@ -67,15 +69,6 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
     }
   }
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      setReceiptFile(file)
-      setReceiptPreview(URL.createObjectURL(file))
-    }
-  }
-
-  // Handle explicit cancellation or close
   const handleCancelAndClose = async () => {
     if (!isSuccess && !hasLoggedCancel.current && session?.token) {
       hasLoggedCancel.current = true
@@ -105,6 +98,7 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
       return
     }
 
+    prepareCelebrationAudio()
     setProcessingRazorpay(true)
 
     try {
@@ -129,7 +123,7 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
         key: razorpayKey,
         amount: orderData.amount, // in paise
         currency: orderData.currency || 'INR',
-        name: 'UniSkills',
+        name: 'UniSkill',
         description: `${course.course_title} (${selectedPlan === 'yearly' ? 'Yearly Access' : 'Monthly Access'})`,
         image: '/logo.png',
         order_id: orderData.order_id || orderData.id,
@@ -152,6 +146,7 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
             })
 
             hasLoggedCancel.current = true // Prevent cancel log
+            celebrate()
             setRazorpaySuccessData({
               paymentId: response.razorpay_payment_id,
               orderId: response.razorpay_order_id,
@@ -175,7 +170,7 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
           plan_type: selectedPlan,
         },
         theme: {
-          color: '#d35400',
+          color: '#0056D2',
         },
         modal: {
           ondismiss: function () {
@@ -240,10 +235,8 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
           </div>
         ) : (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <img src="/logo.png" alt="UniSkills" style={{ height: '24px', width: 'auto' }} />
-              <p className="eyebrow" style={{ color: 'var(--orange)', margin: 0 }}>SECURE ENROLLMENT CHECKOUT</p>
-            </div>
+            <Brand variant="logo" />
+            <p className="eyebrow" style={{ color: 'var(--orange)', margin: 0 }}>Secure checkout</p>
             
             <h2 style={{ fontSize: '26px', letterSpacing: '-1.2px', marginBottom: '6px' }}>
               Enroll in {course.course_title}

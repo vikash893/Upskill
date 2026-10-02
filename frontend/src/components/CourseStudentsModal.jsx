@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
+import { mediaUrl } from '../utils/mediaUrl'
 
 export default function CourseStudentsModal({ course, onClose }) {
   const { session } = useAuth()
@@ -67,11 +68,7 @@ export default function CourseStudentsModal({ course, onClose }) {
             </div>
 
             {students.map((st) => {
-              const photoUrl = st.student_photo || st.photo
-                ? (st.student_photo || st.photo).startsWith('http')
-                  ? (st.student_photo || st.photo)
-                  : `http://localhost:8000/${(st.student_photo || st.photo).replace(/^[\/\\]+/, '').replace(/\\/g, '/')}`
-                : null
+              const photoUrl = mediaUrl(st.student_photo || st.photo)
 
               return (
                 <div

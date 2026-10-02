@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { request } from '../api/request'
+import PublicHero from '../components/PublicHero'
+import MediaImage from '../components/MediaImage'
 
 export default function About({ onAuthOpen }) {
   const { session } = useAuth()
@@ -63,38 +65,20 @@ export default function About({ onAuthOpen }) {
   ]
 
   return (
-    <main>
-      {/* HERO / MISSION BANNER */}
-      <section className="hero-section" style={{ minHeight: '480px', padding: '70px 9vw 50px' }}>
-        <div className="hero-copy">
-          <p className="eyebrow reveal">ABOUT UNISKILL ACADEMY</p>
-          <h1 className="reveal delay-one" style={{ fontSize: 'clamp(40px, 5.5vw, 76px)' }}>
-            Knowledge built for<br /><em>the real world.</em>
-          </h1>
-          <p className="hero-text reveal delay-two" style={{ maxWidth: '480px' }}>
-            We started UniSkill with a conviction: education should be practical, respectful of your time, and led by mentors who have actually built what they teach.
-          </p>
-          <div className="hero-actions reveal delay-two">
-            <Link to="/courses" className="primary-button">
-              Explore Our Courses <span>↗</span>
-            </Link>
-            <Link to="/contact" className="outline-button">
-              Get in Touch
-            </Link>
-          </div>
-        </div>
-        <div className="hero-art" style={{ minHeight: '380px' }}>
-          <div className="art-note note-one">01 / purpose</div>
-          <div className="art-note note-two">practical craft</div>
-          <div className="art-circle" style={{ inset: '20% 15%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', background: '#ffffff', boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
-            <img src="/logo.png" alt="UniSkills" style={{ height: '48px', width: 'auto', objectFit: 'contain' }} />
-            <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.5px', color: 'var(--ink)' }}>
-              Uni<span style={{ color: 'var(--orange)' }}>Skills</span>
-            </span>
-          </div>
-          <div className="art-line"></div>
-        </div>
-      </section>
+    <main className="public-page">
+      <PublicHero
+        kicker="About UniSkill"
+        title={<>Knowledge built for the real world.</>}
+        description="Education should be practical, respectful of your time, and led by mentors who have actually built what they teach."
+        image="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=800&q=80"
+        imageAlt="Learners collaborating"
+        actions={
+          <>
+            <Link to="/courses" className="hero-primary-cta">Explore courses</Link>
+            <Link to="/contact" className="outline-button">Get in touch</Link>
+          </>
+        }
+      />
 
       {/* STATS STRIP */}
       <section className="signal-strip" style={{ background: '#FFFFFF' }}>
@@ -189,9 +173,16 @@ export default function About({ onAuthOpen }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '24px' }}>
           {(dbTeachers.length > 0 ? dbTeachers : mentors).map((mentor, idx) => (
             <div key={idx} style={{ background: '#FFFFFF', border: '1px solid var(--line)', padding: '28px', display: 'flex', flexDirection: 'column' }}>
-              <div className="avatar" style={{ width: '56px', height: '56px', fontSize: '22px', marginBottom: '18px', background: 'var(--ink)' }}>
-                {mentor.name?.charAt(0) || 'M'}
-              </div>
+              <MediaImage
+                src={mentor.photo}
+                alt={mentor.name}
+                style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', marginBottom: 18 }}
+                fallback={
+                  <div className="avatar" style={{ width: '56px', height: '56px', fontSize: '22px', marginBottom: '18px', background: 'var(--ink)' }}>
+                    {mentor.name?.charAt(0) || 'M'}
+                  </div>
+                }
+              />
               <h3 style={{ fontSize: '20px', margin: '0 0 4px', letterSpacing: '-0.5px' }}>{mentor.name}</h3>
               <span style={{ font: '11px var(--mono)', color: 'var(--orange)', display: 'block', marginBottom: '10px' }}>
                 {mentor.role || 'Course Mentor & Faculty'}

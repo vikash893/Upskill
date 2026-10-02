@@ -9,6 +9,7 @@ const Enrollment = require("../models/enrollment");
 const upload = require("../config/multer");
 const authMiddleware = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
+const { persistFile } = require("../config/cloudinary");
 
 const assignmentRouter = express.Router();
 
@@ -66,7 +67,7 @@ assignmentRouter.post(
             const teacherName = teacherDoc?.name || req.user.name || "Course Instructor";
 
             const assignment_id = `asg_${crypto.randomUUID ? crypto.randomUUID().substring(0, 10) : Date.now().toString(36)}`;
-            const attachmentPath = req.file ? `uploads/${req.file.filename}`.replace(/\\/g, "/") : null;
+            const attachmentPath = req.file ? await persistFile(req.file, "uniskill/assignments") : null;
 
             const newAssignment = new Assignment({
                 assignment_id,
@@ -165,7 +166,7 @@ assignmentRouter.post(
             const user = await User.findOne({ email: studentEmail });
             const studentName = user?.name || req.user.name || studentEmail;
 
-            const attachmentPath = req.file ? `uploads/${req.file.filename}`.replace(/\\/g, "/") : null;
+            const attachmentPath = req.file ? await persistFile(req.file, "uniskill/submissions") : null;
 
             const existingSubIndex = assignment.submissions.findIndex(s => s.student_email?.toLowerCase() === studentEmail?.toLowerCase());
 

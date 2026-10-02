@@ -77,12 +77,13 @@ const handleCreateOrder = async (req, res) => {
 
             // Apply coupon discount
             if (coupon_code) {
-                if (
-                    course.coupon_code &&
-                    course.coupon_code.trim().toUpperCase() === coupon_code.trim().toUpperCase() &&
-                    (!course.coupon_code_time || currentDate <= new Date(course.coupon_code_time))
-                ) {
-                    const coupAmt = (actualAmount * (course.coupon_discount || 0)) / 100;
+                const inputCode = coupon_code.trim().toUpperCase();
+                const matchedCoupon = (course.coupons || []).find(
+                    (cp) => cp.code && cp.code.trim().toUpperCase() === inputCode &&
+                        (!cp.expires_at || currentDate <= new Date(cp.expires_at))
+                );
+                if (matchedCoupon) {
+                    const coupAmt = (actualAmount * (matchedCoupon.discount || 0)) / 100;
                     currentPrice = Math.max(0, currentPrice - coupAmt);
                 }
             }
@@ -222,13 +223,14 @@ const handleVerifyPayment = async (req, res) => {
             let couponDiscount = 0;
             let appliedCouponCode = null;
             if (course && coupon_code) {
-                if (
-                    course.coupon_code &&
-                    course.coupon_code.trim().toUpperCase() === coupon_code.trim().toUpperCase() &&
-                    (!course.coupon_code_time || now <= new Date(course.coupon_code_time))
-                ) {
-                    appliedCouponCode = course.coupon_code;
-                    couponDiscount = course.coupon_discount || 0;
+                const inputCode = coupon_code.trim().toUpperCase();
+                const matchedCoupon = (course.coupons || []).find(
+                    (cp) => cp.code && cp.code.trim().toUpperCase() === inputCode &&
+                        (!cp.expires_at || now <= new Date(cp.expires_at))
+                );
+                if (matchedCoupon) {
+                    appliedCouponCode = matchedCoupon.code;
+                    couponDiscount = matchedCoupon.discount || 0;
                     const coupAmt = (actualAmount * couponDiscount) / 100;
                     currentPrice = Math.max(0, currentPrice - coupAmt);
                 }

@@ -10,8 +10,10 @@ const logsRouter = express.Router();
 // ======================================================
 logsRouter.get("/admin/logs", authMiddleware, requireRole("ADMIN"), async (req, res) => {
     try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 50;
+        const requestedPage = Number.parseInt(req.query.page, 10) || 1;
+        const requestedLimit = Number.parseInt(req.query.limit, 10) || 50;
+        const page = Math.max(1, requestedPage);
+        const limit = Math.min(100, Math.max(1, requestedLimit));
         const skip = (page - 1) * limit;
 
         const total = await Logger.countDocuments();

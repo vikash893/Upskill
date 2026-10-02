@@ -79,10 +79,11 @@ const logger = (req, res, next) => {
 
     // On response completion, queue log entry asynchronously
     res.on("finish", () => {
+        const auditIdentity = res.locals.auditIdentity;
         const logEntry = {
-            name,
-            email,
-            role,
+            name: auditIdentity?.name || name,
+            email: auditIdentity?.email || email,
+            role: auditIdentity?.role || role,
             path: url,
             method,
             ipAddress,
@@ -92,13 +93,10 @@ const logger = (req, res, next) => {
             isActive: false
         };
 
-        // Try streaming to Kafka first if available
-        const sentToKafka = publishKafkaEvent(getAuditLogTopic(), email, logEntry);
-        if (!sentToKafka) {
-            logBuffer.push(logEntry);
-            if (logBuffer.length >= BATCH_SIZE) {
-                flushLogBuffer().catch(() => {});
-            }
+        publishKafkaEvent(getAuditLogTopic(), logEntry.email, logEntry).catch(() => {});
+        logBuffer.push(logEntry);
+        if (logBuffer.length >= BATCH_SIZE) {
+            flushLogBuffer().catch(() => {});
         }
     });
 

@@ -52,19 +52,15 @@ const courseSchema = new mongoose.Schema(
             type: Date,
             default: null
         },
-        coupon_code: {
-            type: String,
-            default: null,
-            index: true
-        },
-        coupon_discount: {
-            type: Number,
-            default: 0
-        },
-        coupon_code_time: {
-            type: Date,
-            default: null
-        }
+        coupons: [
+            {
+                code: { type: String, required: true },
+                discount: { type: Number, required: true },
+                expires_at: { type: Date, required: true },
+                person_name: { type: String, default: '' },
+                created_at: { type: Date, default: Date.now }
+            }
+        ]
     },
     {
         timestamps: true

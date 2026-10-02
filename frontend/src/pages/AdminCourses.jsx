@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import CourseStudentsModal from '../components/CourseStudentsModal'
+import { mediaUrl } from '../utils/mediaUrl'
 
 export default function AdminCourses() {
   const { session } = useAuth()
@@ -24,8 +25,14 @@ export default function AdminCourses() {
   const [message, setMessage] = useState('')
   const [discountForm, setDiscountForm] = useState({ course_id: '', discount: '', discount_time: '' })
   const [couponForm, setCouponForm] = useState({ course_id: '', person_name: '', coupon_discount: '', coupon_code_time: '' })
-  const [activePanel, setActivePanel] = useState(null)
+  const [activePanel, setActivePanel] = useState(null) // 'discount' | 'coupon' | 'manage-coupons'
   const [selectedCourseForStudents, setSelectedCourseForStudents] = useState(null)
+
+  // Multi-coupon state
+  const [manageCouponsCourseId, setManageCouponsCourseId] = useState(null)
+  const [manageCouponsTitle, setManageCouponsTitle] = useState('')
+  const [couponsList, setCouponsList] = useState([])
+  const [couponsLoading, setCouponsLoading] = useState(false)
 
   const fetchCourses = () => {
     setLoading(true)
@@ -108,7 +115,44 @@ export default function AdminCourses() {
         }),
       })
       setMessage(`Coupon created: ${data.coupon?.coupon_code}`)
-      setActivePanel(null)
+      setCouponForm({ ...couponForm, person_name: '', coupon_discount: '', coupon_code_time: '' })
+      // Refresh coupons list if manage panel is open for same course
+      if (manageCouponsCourseId === couponForm.course_id) {
+        fetchCouponsForCourse(couponForm.course_id)
+      }
+      fetchCourses()
+    } catch (err) {
+      setMessage(err.message)
+    }
+  }
+
+  const fetchCouponsForCourse = async (courseId) => {
+    setCouponsLoading(true)
+    try {
+      const data = await request(`/coupons/${courseId}`, { headers })
+      setCouponsList(data.coupons || [])
+      setManageCouponsTitle(data.course_title || courseId)
+    } catch (err) {
+      setMessage(err.message)
+      setCouponsList([])
+    } finally {
+      setCouponsLoading(false)
+    }
+  }
+
+  const openManageCoupons = (course) => {
+    setManageCouponsCourseId(course.course_id)
+    setCouponForm({ ...couponForm, course_id: course.course_id })
+    setActivePanel('manage-coupons')
+    fetchCouponsForCourse(course.course_id)
+  }
+
+  const deleteCoupon = async (courseId, couponId) => {
+    if (!window.confirm('Delete this coupon code? Students will no longer be able to use it.')) return
+    try {
+      await request(`/delete-coupon/${courseId}/${couponId}`, { method: 'DELETE', headers })
+      setMessage('Coupon deleted successfully')
+      fetchCouponsForCourse(courseId)
       fetchCourses()
     } catch (err) {
       setMessage(err.message)
@@ -218,29 +262,90 @@ export default function AdminCourses() {
           </form>
         )}
 
-        {/* Coupon Panel */}
-        {activePanel === 'coupon' && (
-          <form onSubmit={addCoupon} style={{ padding: '25px', border: '1px solid var(--orange)', background: '#fef7f0', marginBottom: '30px', display: 'grid', gap: '15px' }}>
-            <p className="eyebrow">CUSTOM COUPON GENERATOR</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
-              <label style={{ display: 'grid', gap: '6px', color: 'var(--muted)', fontSize: '11px' }}>
-                Assignee / Prefix
-                <input required value={couponForm.person_name} onChange={(e) => setCouponForm({ ...couponForm, person_name: e.target.value })} style={{ padding: '12px', border: '1px solid var(--line)' }} />
-              </label>
-              <label style={{ display: 'grid', gap: '6px', color: 'var(--muted)', fontSize: '11px' }}>
-                Discount %
-                <input type="number" min="1" max="100" required value={couponForm.coupon_discount} onChange={(e) => setCouponForm({ ...couponForm, coupon_discount: e.target.value })} style={{ padding: '12px', border: '1px solid var(--line)' }} />
-              </label>
-              <label style={{ display: 'grid', gap: '6px', color: 'var(--muted)', fontSize: '11px' }}>
-                Expires At
-                <input type="datetime-local" required value={couponForm.coupon_code_time} onChange={(e) => setCouponForm({ ...couponForm, coupon_code_time: e.target.value })} style={{ padding: '12px', border: '1px solid var(--line)' }} />
-              </label>
+        {/* Manage Coupons Panel (multi-coupon) */}
+        {activePanel === 'manage-coupons' && (
+          <div style={{ padding: '25px', border: '1px solid var(--orange)', background: '#fef7f0', marginBottom: '30px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <div>
+                <p className="eyebrow" style={{ color: 'var(--orange)' }}>COUPON MANAGER</p>
+                <h3 style={{ margin: '4px 0 0', fontSize: '16px' }}>{manageCouponsTitle}</h3>
+              </div>
+              <button className="outline-button" style={{ fontSize: '11px', padding: '6px 14px' }} onClick={() => { setActivePanel(null); setManageCouponsCourseId(null) }}>
+                Close
+              </button>
             </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button className="primary-button" type="submit">Generate Code</button>
-              <button className="outline-button" type="button" onClick={() => setActivePanel(null)}>Cancel</button>
-            </div>
-          </form>
+
+            {/* Add New Coupon Form */}
+            <form onSubmit={addCoupon} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '12px', alignItems: 'end', marginBottom: '20px', padding: '16px', background: '#fff', border: '1px solid var(--line)' }}>
+              <label style={{ display: 'grid', gap: '5px', color: 'var(--muted)', fontSize: '11px' }}>
+                Assignee / Prefix *
+                <input required placeholder="e.g. John" value={couponForm.person_name} onChange={(e) => setCouponForm({ ...couponForm, person_name: e.target.value })} style={{ padding: '10px', border: '1px solid var(--line)' }} />
+              </label>
+              <label style={{ display: 'grid', gap: '5px', color: 'var(--muted)', fontSize: '11px' }}>
+                Discount % *
+                <input type="number" min="1" max="100" required placeholder="e.g. 20" value={couponForm.coupon_discount} onChange={(e) => setCouponForm({ ...couponForm, coupon_discount: e.target.value })} style={{ padding: '10px', border: '1px solid var(--line)' }} />
+              </label>
+              <label style={{ display: 'grid', gap: '5px', color: 'var(--muted)', fontSize: '11px' }}>
+                Expires At *
+                <input type="datetime-local" required value={couponForm.coupon_code_time} onChange={(e) => setCouponForm({ ...couponForm, coupon_code_time: e.target.value })} style={{ padding: '10px', border: '1px solid var(--line)' }} />
+              </label>
+              <button className="primary-button" type="submit" style={{ padding: '10px 18px', fontSize: '12px' }}>
+                + Add Coupon
+              </button>
+            </form>
+
+            {/* Coupons List */}
+            {couponsLoading ? (
+              <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Loading coupons...</p>
+            ) : couponsList.length === 0 ? (
+              <p style={{ color: 'var(--muted)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>No coupons yet. Create one above.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: '8px' }}>
+                <p style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>{couponsList.length} COUPON{couponsList.length > 1 ? 'S' : ''} ACTIVE</p>
+                {couponsList.map((cp) => {
+                  const isExpired = cp.expires_at && new Date() > new Date(cp.expires_at)
+                  return (
+                    <div
+                      key={cp._id}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr auto',
+                        gap: '12px',
+                        alignItems: 'center',
+                        padding: '12px 16px',
+                        background: isExpired ? '#fef2f2' : '#fff',
+                        border: `1px solid ${isExpired ? '#fecaca' : 'var(--line)'}`,
+                        borderRadius: '4px',
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                          <code style={{ fontSize: '14px', fontWeight: 700, color: isExpired ? '#991b1b' : 'var(--orange)', letterSpacing: '1px' }}>
+                            {cp.code}
+                          </code>
+                          <span style={{ fontSize: '11px', padding: '2px 8px', background: isExpired ? '#fecaca' : '#dcfce7', color: isExpired ? '#991b1b' : '#166534', borderRadius: '3px', fontWeight: 600 }}>
+                            {isExpired ? 'EXPIRED' : `${cp.discount}% OFF`}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
+                          {cp.person_name && <span>For: <strong>{cp.person_name}</strong> · </span>}
+                          Expires: {cp.expires_at ? new Date(cp.expires_at).toLocaleString() : '—'}
+                          {cp.created_at && <span> · Created: {new Date(cp.created_at).toLocaleDateString()}</span>}
+                        </div>
+                      </div>
+                      <button
+                        className="outline-button"
+                        style={{ fontSize: '10px', padding: '6px 12px', borderColor: '#c0392b', color: '#c0392b' }}
+                        onClick={() => deleteCoupon(manageCouponsCourseId, cp._id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Course List */}
@@ -251,9 +356,11 @@ export default function AdminCourses() {
         ) : (
           <div style={{ display: 'grid', gap: '14px' }}>
             {courses.map((c) => {
-              const img = c.photo ? `http://localhost:8000/${c.photo.replace(/\\/g, '/')}` : null
+              const img = mediaUrl(c.photo)
               const monthly = c.monthly_amount || c.course_amount || 0
               const yearly = c.yearly_amount || (monthly > 0 ? monthly * 10 : 0)
+              const activeCoupons = (c.coupons || []).filter((cp) => !cp.expires_at || new Date() < new Date(cp.expires_at))
+              const totalCoupons = (c.coupons || []).length
 
               return (
                 <div key={c.course_id} style={{ display: 'grid', gridTemplateColumns: '80px 1.5fr auto', gap: '18px', alignItems: 'center', padding: '18px', border: '1px solid var(--line)', background: '#FFFFFF' }}>
@@ -269,7 +376,11 @@ export default function AdminCourses() {
                         </span>
                       )}
                       {c.discount > 0 && ` · Flash: ${c.discount}% off`}
-                      {c.coupon_code && ` · Coupon: ${c.coupon_code}`}
+                      {totalCoupons > 0 && (
+                        <span style={{ color: 'var(--orange)' }}>
+                          {' '}· {activeCoupons.length} active coupon{activeCoupons.length !== 1 ? 's' : ''}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -277,13 +388,13 @@ export default function AdminCourses() {
                       Classroom ↗
                     </button>
                     <button className="outline-button" style={{ fontSize: '10px', padding: '7px 12px' }} onClick={() => setSelectedCourseForStudents(c)}>
-                      👥 Students
+                      Students
                     </button>
                     <button className="outline-button" style={{ fontSize: '10px', padding: '7px 12px' }} onClick={() => { setDiscountForm({ ...discountForm, course_id: c.course_id }); setActivePanel('discount') }}>
                       Discount
                     </button>
-                    <button className="outline-button" style={{ fontSize: '10px', padding: '7px 12px' }} onClick={() => { setCouponForm({ ...couponForm, course_id: c.course_id }); setActivePanel('coupon') }}>
-                      Coupon
+                    <button className="outline-button" style={{ fontSize: '10px', padding: '7px 12px' }} onClick={() => openManageCoupons(c)}>
+                      Coupons{totalCoupons > 0 ? ` (${totalCoupons})` : ''}
                     </button>
                     <button className="outline-button" style={{ fontSize: '10px', padding: '7px 12px', borderColor: '#c0392b', color: '#c0392b' }} onClick={() => deleteCourse(c.course_id)}>
                       Delete

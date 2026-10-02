@@ -9,6 +9,8 @@ const LiveAttendance = require("../models/liveAttendance");
 const authMiddleware = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
 const { liveClassRateLimit } = require("../middleware/rateLimit");
+const upload = require("../config/multer");
+const { persistFile } = require("../config/cloudinary");
 const {
     isEnrolled,
     getLiveClassSnapshot,
@@ -370,8 +372,6 @@ liveClassRouter.get("/live-class/export-attendance/:class_id", authMiddleware, r
 // ======================================================
 // UPDATE LIVE CLASS RECORDING (FILE OR NETWORK LINK)
 // ======================================================
-const upload = require("../config/multer");
-
 liveClassRouter.patch(
     "/live-class/recording/:class_id",
     authMiddleware,
@@ -388,7 +388,7 @@ liveClassRouter.patch(
             }
 
             if (req.file) {
-                liveClass.recording_url = `uploads/${req.file.filename}`.replace(/\\/g, "/");
+                liveClass.recording_url = await persistFile(req.file, "uniskill/recordings");
                 liveClass.is_recording = false;
             } else if (recording_url) {
                 liveClass.recording_url = recording_url;

@@ -1,15 +1,14 @@
 import { useNavigate } from 'react-router-dom'
+import { mediaUrl } from '../utils/mediaUrl'
 
 export default function CourseCard({ course }) {
   const navigate = useNavigate()
-  const image = course.photo
-    ? `http://localhost:8000/${course.photo.replace(/\\\\/g, '/')}`
-    : null
+  const image = mediaUrl(course.photo)
 
   return (
     <article className="course-card" onClick={() => navigate(`/course/${course.course_id}`)} style={{ cursor: 'pointer' }}>
       <div className="course-image" style={image ? { backgroundImage: `url(${image})` } : undefined}>
-        {!image && <span className="course-image-fallback">UNI / SKILL</span>}
+        {!image && <span className="course-image-fallback">UniSkill</span>}
         <span className="badge">
           {course.course_type === 'free' ? 'Free to learn' : `${course.discount || 0}% off`}
         </span>

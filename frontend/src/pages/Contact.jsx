@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { request } from '../api/request'
+import PublicHero from '../components/PublicHero'
 
 export default function Contact() {
   const [formData, setFormData] = useState({
@@ -35,7 +36,7 @@ export default function Contact() {
   const supportFaqs = [
     {
       q: 'How quickly will I receive course access after payment?',
-      a: 'If you pay via Razorpay Online Checkout, access is instant! If you submit a manual UPI receipt, administrators verify it within 1–2 hours.',
+      a: 'Razorpay checkout grants access immediately after a successful payment. You can review every transaction in your payment history.',
     },
     {
       q: 'Can I switch between monthly and yearly billing?',
@@ -52,30 +53,14 @@ export default function Contact() {
   ]
 
   return (
-    <main>
-      {/* HEADER SECTION */}
-      <section className="hero-section" style={{ minHeight: '420px', padding: '70px 9vw 40px' }}>
-        <div className="hero-copy">
-          <p className="eyebrow reveal">CONTACT & SUPPORT</p>
-          <h1 className="reveal delay-one" style={{ fontSize: 'clamp(40px, 5.5vw, 76px)' }}>
-            We're here to help<br /><em>your journey forward.</em>
-          </h1>
-          <p className="hero-text reveal delay-two" style={{ maxWidth: '460px' }}>
-            Have a question regarding course enrollments, billing plans, instructor mentorship, or technical support? Send us a message and our team will get back to you promptly.
-          </p>
-        </div>
-        <div className="hero-art" style={{ minHeight: '340px' }}>
-          <div className="art-note note-one">01 / talk to us</div>
-          <div className="art-note note-two">24h response</div>
-          <div className="art-circle" style={{ inset: '20% 15%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', background: '#ffffff', boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
-            <img src="/logo.png" alt="UniSkills" style={{ height: '48px', width: 'auto', objectFit: 'contain' }} />
-            <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.5px', color: 'var(--ink)' }}>
-              Uni<span style={{ color: 'var(--orange)' }}>Skills</span>
-            </span>
-          </div>
-          <div className="art-line"></div>
-        </div>
-      </section>
+    <main className="public-page">
+      <PublicHero
+        kicker="Contact"
+        title="We're here to help your journey forward."
+        description="Questions about enrollments, billing, mentorship, or classroom access? Send a message and the UniSkill team will reply promptly."
+        image="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=800&q=80"
+        imageAlt="Support specialist"
+      />
 
       {/* QUICK CONTACT CHANNELS */}
       <section className="signal-strip" style={{ background: '#FFFFFF' }}>
@@ -89,7 +74,7 @@ export default function Contact() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '50px', alignItems: 'start' }}>
           
           {/* Left: Interactive Form */}
-          <div style={{ background: '#FFFFFF', border: '1px solid var(--line)', padding: '36px' }}>
+          <div className="public-form-card">
             <p className="eyebrow" style={{ marginBottom: '8px' }}>SEND A MESSAGE</p>
             <h2 style={{ fontSize: '28px', letterSpacing: '-1.5px', marginBottom: '8px' }}>
               Direct Inquiry Desk
@@ -119,7 +104,7 @@ export default function Contact() {
             ) : (
               <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '16px' }}>
                 {error && <p className="form-message" style={{ margin: 0, padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca' }}>{error}</p>}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div className="contact-form-grid">
                   <label style={{ display: 'grid', gap: '6px', fontSize: '11px', color: 'var(--muted)' }}>
                     Full Name *
                     <input
@@ -143,7 +128,7 @@ export default function Contact() {
                   </label>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div className="contact-form-grid">
                   <label style={{ display: 'grid', gap: '6px', fontSize: '11px', color: 'var(--muted)' }}>
                     Phone Number
                     <input

@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext'
 
 export default function LiveClassModal({ liveClass, onClose, onRecordingToggle }) {
   const { session } = useAuth()
-  const [joined, setJoined] = useState(false)
   const [isRecording, setIsRecording] = useState(liveClass?.is_recording || false)
   const isTeacherOrAdmin = session?.role === 'TEACHER' || session?.role === 'ADMIN'
 
@@ -13,8 +12,6 @@ export default function LiveClassModal({ liveClass, onClose, onRecordingToggle }
     if (session?.role === 'STUDENT' && liveClass?.class_id) {
       request(`/live-class/join/${liveClass.class_id}`, {
         method: 'POST',
-      }).then(() => {
-        setJoined(true)
       }).catch((err) => {
         console.log('Join class error:', err)
       })
@@ -45,6 +42,10 @@ export default function LiveClassModal({ liveClass, onClose, onRecordingToggle }
     }
   }
 
+  const [selectedServer, setSelectedServer] = useState(
+    (import.meta.env.VITE_JITSI_DOMAIN || 'meet.ffrn.de').replace(/^https?:\/\//, '').replace(/\/+$/, '')
+  )
+
   const handleClose = async () => {
     if (session?.role === 'STUDENT' && liveClass?.class_id) {
       try {
@@ -59,14 +60,32 @@ export default function LiveClassModal({ liveClass, onClose, onRecordingToggle }
   }
 
   const roomName = liveClass.room_name || `UniSkill_${liveClass.class_id}`
-  const displayName = encodeURIComponent(session?.name || session?.email || 'Participant')
-  const jitsiUrl = `https://meet.jit.si/${roomName}#userInfo.displayName="${displayName}"&config.prejoinPageEnabled=false`
+  const displayName = encodeURIComponent(session?.name || session?.email?.split('@')[0] || 'Learner')
+  const jitsiDomain = selectedServer || 'meet.ffrn.de'
+  const configParams = [
+    `userInfo.displayName="${displayName}"`,
+    'config.prejoinPageEnabled=false',
+    'config.prejoinConfig.enabled=false',
+    'config.enableWelcomePage=false',
+    'config.disableDeepLinking=true',
+    'config.requireDisplayName=false',
+    'config.enableClosePage=false',
+    'config.readOnlyName=true',
+    'config.startWithAudioMuted=false',
+    'config.startWithVideoMuted=false',
+    'interfaceConfig.DISABLE_JOIN_LEAVE_NOTIFICATIONS=true',
+    'interfaceConfig.SHOW_JITSI_WATERMARK=false',
+    'interfaceConfig.SHOW_WATERMARK_FOR_GUESTS=false',
+    'interfaceConfig.SHOW_BRAND_WATERMARK=false',
+    'interfaceConfig.SHOW_POWERED_BY=false',
+  ].join('&')
+  const jitsiUrl = `https://${jitsiDomain}/${encodeURIComponent(roomName)}#${configParams}`
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && handleClose()}>
-      <div style={{ background: '#0D0F12', width: 'min(1100px, 98vw)', height: '90vh', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '20px 20px 0 var(--lime)', border: '1px solid var(--line)' }}>
+      <div style={{ background: '#0D0F12', width: 'min(1200px, 98vw)', height: '92vh', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '20px 20px 0 var(--lime)', border: '1px solid var(--line)' }}>
         {/* Header Bar */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', background: '#181a17', color: 'white', borderBottom: '1px solid #333' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', background: '#181a17', color: 'white', borderBottom: '1px solid #333', flexWrap: 'wrap', gap: '10px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span className="badge" style={{ position: 'static', background: 'red', color: 'white', fontWeight: 700 }}>
@@ -80,11 +99,33 @@ export default function LiveClassModal({ liveClass, onClose, onRecordingToggle }
               <strong style={{ fontSize: '15px' }}>{liveClass.title}</strong>
             </div>
             <p style={{ font: '10px var(--mono)', color: '#aaa', margin: '3px 0 0' }}>
-              Course: {liveClass.course_title} · Instructor: {liveClass.teacher_name}
+              Course: {liveClass.course_title} · Instructor: {liveClass.teacher_name} · Room: {roomName}
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Server Selector */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '11px', color: '#888' }}>Server:</label>
+              <select
+                value={selectedServer}
+                onChange={(e) => setSelectedServer(e.target.value)}
+                style={{
+                  background: '#24272b',
+                  color: '#fff',
+                  border: '1px solid #444',
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  fontSize: '11px',
+                }}
+                title="Select live classroom media server"
+              >
+                <option value="meet.ffrn.de">Freifunk (Direct / No Login)</option>
+                <option value="framatalk.org">Framatalk Open</option>
+                <option value="meet.jit.si">Jitsi Meet Public</option>
+              </select>
+            </div>
+
             {isTeacherOrAdmin && (
               <button
                 className="outline-button"
@@ -123,9 +164,10 @@ export default function LiveClassModal({ liveClass, onClose, onRecordingToggle }
         {/* Embedded Jitsi Meeting Iframe */}
         <div style={{ flex: 1, position: 'relative', background: '#000' }}>
           <iframe
+            key={jitsiUrl}
             src={jitsiUrl}
             title="UniSkill Live Classroom"
-            allow="camera; microphone; fullscreen; display-capture; autoplay"
+            allow="camera *; microphone *; fullscreen *; display-capture *; autoplay *; clipboard-write; clipboard-read"
             style={{ width: '100%', height: '100%', border: 0 }}
           />
         </div>
