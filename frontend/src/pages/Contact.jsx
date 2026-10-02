@@ -64,9 +64,9 @@ export default function Contact() {
 
       {/* QUICK CONTACT CHANNELS */}
       <section className="signal-strip" style={{ background: '#FFFFFF' }}>
-        <div><strong>OFFICIAL EMAIL</strong><span>support@uniskill.in</span></div>
-        <div><strong>STUDENT HELPDESK</strong><span>+91 98765 43210</span></div>
-        <div><strong>WHATSAPP ADVISORY</strong><span>+91 98765 43211</span></div>
+        <div><strong>OFFICIAL EMAIL</strong><span>vikashbhardwaj430@gmail.com</span></div>
+        <div><strong>STUDENT HELPDESK</strong><span>+91 7817888216</span></div>
+        <div><strong>WHATSAPP ADVISORY</strong><span>+91 7817888216</span></div>
       </section>
 
       {/* MAIN INTERACTIVE FORM & SUPPORT FAQS */}

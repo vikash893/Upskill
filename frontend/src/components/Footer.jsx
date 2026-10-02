@@ -140,10 +140,10 @@ export default function Footer() {
 
             {/* Social handles */}
             <div style={{ display: 'flex', gap: '14px', fontSize: '12px', color: '#9fa198' }}>
-              <a href="https://github.com" target="_blank" rel="noreferrer" style={{ transition: 'color .2s' }} onMouseEnter={(e) => e.target.style.color = 'white'} onMouseLeave={(e) => e.target.style.color = '#9fa198'}>GitHub</a>
-              <a href="https://twitter.com" target="_blank" rel="noreferrer" style={{ transition: 'color .2s' }} onMouseEnter={(e) => e.target.style.color = 'white'} onMouseLeave={(e) => e.target.style.color = '#9fa198'}>Twitter / X</a>
+              <a href="https://www.instagram.com/uniskill27/" target="_blank" rel="noreferrer" style={{ transition: 'color .2s' }} onMouseEnter={(e) => e.target.style.color = 'white'} onMouseLeave={(e) => e.target.style.color = '#9fa198'}>Instagram</a>
+              {/* <a href="https://twitter.com" target="_blank" rel="noreferrer" style={{ transition: 'color .2s' }} onMouseEnter={(e) => e.target.style.color = 'white'} onMouseLeave={(e) => e.target.style.color = '#9fa198'}>Twitter / X</a>
               <a href="https://linkedin.com" target="_blank" rel="noreferrer" style={{ transition: 'color .2s' }} onMouseEnter={(e) => e.target.style.color = 'white'} onMouseLeave={(e) => e.target.style.color = '#9fa198'}>LinkedIn</a>
-              <a href="https://discord.com" target="_blank" rel="noreferrer" style={{ transition: 'color .2s' }} onMouseEnter={(e) => e.target.style.color = 'white'} onMouseLeave={(e) => e.target.style.color = '#9fa198'}>Discord</a>
+              <a href="https://discord.com" target="_blank" rel="noreferrer" style={{ transition: 'color .2s' }} onMouseEnter={(e) => e.target.style.color = 'white'} onMouseLeave={(e) => e.target.style.color = '#9fa198'}>Discord</a> */}
             </div>
           </div>
         </div>

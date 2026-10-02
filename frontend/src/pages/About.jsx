@@ -40,9 +40,6 @@ export default function About({ onAuthOpen }) {
 
   const mentors = [
     { name: 'Tushar Sharma', role: 'Co-Founder & Head of Academics', area: 'System Architecture & Distributed Engineering', bio: 'Passionate about demystifying high-scale software engineering and building outcome-focused learning tracks.' },
-    { name: 'Vikash Bhardwaj', role: 'Co-Founder & Platform Lead', area: 'Full-Stack Architecture & Cloud Systems', bio: 'Crafting high-performance educational tooling, interactive studio streaming, and student-first web experiences.' },
-    { name: 'Dr. Ananya Ray', role: 'Principal AI Researcher', area: 'Applied Machine Learning & Neural Networks', bio: 'Former research fellow with extensive expertise in transformer models and real-world computer vision pipelines.' },
-    { name: 'Rohan Mehta', role: 'Director of Industry Mentorship', area: 'DevOps, SRE & Cloud Infrastructure', bio: '12+ years deploying enterprise microservices across Kubernetes, AWS, and modern CI/CD automation.' },
   ]
 
   const faqs = [
