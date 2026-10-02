@@ -31,6 +31,7 @@ const adminDashboardRouter = require('./router/adminDashboard');
 const formsRouter = require('./router/forms');
 const announcementRouter = require('./router/announcement');
 const activityRouter = require('./router/activity');
+const jobRouter = require('./router/job');
 
 const app = express();
 const port = Number(process.env.PORT) || 8000;
@@ -98,8 +99,10 @@ app.use('/api', adminDashboardRouter);
 app.use('/api', formsRouter);
 app.use('/api', announcementRouter);
 app.use('/api', activityRouter);
+app.use('/api', jobRouter);
 app.use(announcementRouter);
 app.use(activityRouter);
+app.use(jobRouter);
 
 async function startWorker() {
     await connectDb();

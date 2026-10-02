@@ -22,6 +22,12 @@ function getNavSections(role) {
         ],
       },
       {
+        title: 'Careers & Opportunities',
+        items: [
+          { label: 'Jobs & Internships', path: '/student/jobs' },
+        ],
+      },
+      {
         title: 'Feedback & Forms',
         items: [
           { label: 'Feedback Forms', path: '/student/forms' },
@@ -88,6 +94,7 @@ function getNavSections(role) {
         { label: 'Students', path: '/admin/users' },
         { label: 'Teachers', path: '/admin/teachers' },
         { label: 'Courses', path: '/admin/courses' },
+        { label: 'Jobs & Internships', path: '/admin/jobs' },
         { label: 'Certificates', path: '/admin/certificates' },
       ],
     },

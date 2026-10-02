@@ -1,0 +1,14 @@
+{
+  "name": "uniskill-platform",
+  "private": true,
+  "version": "1.0.0",
+  "description": "UniSkill Platform — Landing Website (uniskill.in) & Web Application (app.uniskill.in)",
+  "scripts": {
+    "dev:landing": "npm --prefix landing run dev",
+    "dev:app": "npm --prefix frontend run dev",
+    "dev:backend": "node backend/server.js",
+    "build:landing": "npm --prefix landing run build",
+    "build:app": "npm --prefix frontend run build",
+    "build": "npm run build:landing && npm run build:app"
+  }
+}
