@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Allow: /about
+Allow: /courses
+Allow: /contact
+
+Sitemap: https://uniskill.in/sitemap.xml
