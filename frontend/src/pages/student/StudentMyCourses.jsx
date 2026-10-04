@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
 import { mediaUrl } from '../../utils/mediaUrl'
+import Skeleton from '../../components/Skeleton'
 
 export default function StudentMyCourses() {
   const { session } = useAuth()
@@ -38,7 +39,7 @@ export default function StudentMyCourses() {
       </div>
 
       {loading ? (
-        <div className="empty-state">Loading your course classrooms...</div>
+        <Skeleton variant="course-cards" count={3} label="Loading your course classrooms" />
       ) : error ? (
         <div className="empty-state">{error}</div>
       ) : courses.length === 0 ? (

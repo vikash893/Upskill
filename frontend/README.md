@@ -17,4 +17,4 @@ If you are developing a production application, we recommend using TypeScript wi
 
 ## Live Classes
 
-Set `VITE_JITSI_DOMAIN` in the frontend environment to use your Jitsi host, for example `meet.example.com`. It defaults to `meet.jit.si`. The app disables optional prejoin and welcome screens where supported by the host. Jitsi host policy still controls moderator authentication; to guarantee teachers can start rooms without signing in to Jitsi, configure a guest-enabled Jitsi deployment and set this variable to that domain.
+Live classes use UniSkill's native WebRTC studio. Teachers broadcast from the browser with camera, microphone, screen share, and optional local recording upload. Students join the same classroom modal, while the backend provides authenticated signaling and attendance tracking.

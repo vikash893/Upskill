@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import PaymentModal from '../components/PaymentModal'
 import { mediaUrl } from '../utils/mediaUrl'
 import { celebrate, prepareCelebrationAudio } from '../utils/celebration'
+import Skeleton from '../components/Skeleton'
 
 export default function CourseDetail({ onAuthOpen }) {
   const { courseId } = useParams()
@@ -64,7 +65,7 @@ export default function CourseDetail({ onAuthOpen }) {
     }
   }
 
-  if (loading) return <main><section className="content-section"><div className="empty-state">Loading course details...</div></section></main>
+  if (loading) return <main><section className="content-section"><Skeleton variant="detail" count={2} label="Loading course details" /></section></main>
   if (error) return <main><section className="content-section"><div className="empty-state">{error}</div></section></main>
   if (!course) return <main><section className="content-section"><div className="empty-state">Course not found.</div></section></main>
 

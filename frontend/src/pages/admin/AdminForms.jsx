@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
+import Skeleton from '../../components/Skeleton'
 
 const fieldTypes = [
   { value: 'text', label: 'Short text' },
@@ -242,7 +243,7 @@ export default function AdminForms() {
                 <button type="button" className="primary-button form-add-button" onClick={createForm} title="Create form" aria-label="Create form">+</button>
               </div>
               {loading ? (
-                <div className="form-list-empty">Loading forms...</div>
+                <Skeleton variant="rows" count={4} label="Loading forms" />
               ) : forms.length ? (
                 <div className="form-list-items">
                   {forms.map((form) => (
@@ -341,7 +342,7 @@ export default function AdminForms() {
                 </select>
               </label>
             </div>
-            {loading ? <div className="empty-state">Loading submissions...</div> : submissions.length === 0 ? <div className="empty-state">No submissions for this form yet.</div> : (
+            {loading ? <Skeleton variant="table" count={5} label="Loading form submissions" /> : submissions.length === 0 ? <div className="empty-state">No submissions for this form yet.</div> : (
               <div className="form-submission-list">
                 {submissions.map((submission) => {
                   const form = forms.find((item) => item._id === submission.form_id)

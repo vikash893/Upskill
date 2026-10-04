@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
-import LiveClassModal from '../../components/LiveClassModal'
 import AttendanceModal from '../../components/AttendanceModal'
+import Skeleton from '../../components/Skeleton'
+import { generateAndOpenLiveClass } from '../../utils/openLiveClass'
 
 export default function TeacherLiveStudio() {
   const { session } = useAuth()
@@ -10,9 +11,10 @@ export default function TeacherLiveStudio() {
   const [courses, setCourses] = useState([])
   const [classes, setClasses] = useState([])
   const [loading, setLoading] = useState(true)
+  const [googleStatus, setGoogleStatus] = useState({ loading: true, connected: false, account_email: null })
+  const [googleNotice, setGoogleNotice] = useState('')
   const [showCreate, setShowCreate] = useState(false)
-  const [form, setForm] = useState({ course_id: '', title: '', topic: '', scheduled_time: '' })
-  const [activeLiveModal, setActiveLiveModal] = useState(null)
+  const [form, setForm] = useState({ course_id: '', title: '', topic: '', scheduled_time: '', duration_minutes: '60' })
   const [activeAttendanceClassId, setActiveAttendanceClassId] = useState(null)
 
   // Recording Modal state
@@ -62,7 +64,63 @@ export default function TeacherLiveStudio() {
 
   useEffect(() => {
     fetchLiveStudio()
+    if (session?.role === 'TEACHER') {
+      request('/auth/google/meet/status', { headers })
+        .then((status) => setGoogleStatus({ loading: false, ...status }))
+        .catch(() => setGoogleStatus({ loading: false, connected: false, account_email: null, verificationError: true }))
+    } else {
+      setGoogleStatus({ loading: false, connected: false, account_email: null })
+    }
+
+    const callbackState = new URLSearchParams(window.location.search).get('googleMeet')
+    const callbackNotices = {
+      connected: 'Google account verified and connected.',
+      denied: 'Google authorization was cancelled.',
+      'missing-refresh-token': 'Google did not provide offline access. Reconnect and approve the requested permissions.',
+      'missing-scopes': 'Google did not grant all permissions needed for Meet scheduling and account verification.',
+      'unverified-account': 'Google did not verify the account email. No connection was saved.',
+      error: 'Google authorization failed. Check the backend OAuth configuration and try again.',
+    }
+    if (callbackNotices[callbackState]) setGoogleNotice(callbackNotices[callbackState])
   }, [])
+
+  useEffect(() => {
+    const activeMeetClasses = classes.filter((cls) =>
+      cls.status === 'live' && cls.meeting_provider === 'google-meet' && cls.meeting_url && !cls.meet_sync_unsupported
+    )
+    if (!activeMeetClasses.length || session?.role !== 'TEACHER') return undefined
+
+    let checking = false
+    const syncMeetStatus = async () => {
+      if (checking) return
+      checking = true
+      try {
+        const results = await Promise.all(activeMeetClasses.map(async (cls) => {
+          const result = await request(`/live-class/${cls.class_id}/meet-status`, { headers })
+          return { classId: cls.class_id, state: result.state, liveClass: result.liveClass }
+        }))
+        const updates = new Map()
+        for (const result of results) {
+          if (result.state === 'ended' && result.liveClass) updates.set(result.classId, result.liveClass)
+          if (result.state === 'unsupported') updates.set(result.classId, { meet_sync_unsupported: true })
+        }
+        if (updates.size) {
+          setClasses((current) => current.map((cls) => {
+            const update = updates.get(cls.class_id)
+            return update ? { ...cls, ...update } : cls
+          }))
+        }
+      } catch {
+        // Transient Google API failures are retried on the next poll.
+      } finally {
+        checking = false
+      }
+    }
+
+    syncMeetStatus()
+    const interval = window.setInterval(syncMeetStatus, 15000)
+    return () => window.clearInterval(interval)
+  }, [classes, session?.role, session?.token])
 
   const handleCreate = async (e) => {
     e.preventDefault()
@@ -70,23 +128,68 @@ export default function TeacherLiveStudio() {
       await request('/live-class/create', {
         method: 'POST',
         headers,
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          duration_minutes: Number(form.duration_minutes || 60),
+        }),
       })
 
       setShowCreate(false)
-      setForm({ course_id: courses[0]?.course_id || '', title: '', topic: '', scheduled_time: '' })
+      setForm({ course_id: courses[0]?.course_id || '', title: '', topic: '', scheduled_time: '', duration_minutes: '60' })
       fetchLiveStudio()
     } catch (err) {
       alert(err.message)
     }
   }
 
-  const handleStatusUpdate = async (classId, nextStatus) => {
+  const handleOpenClassroom = async (cls) => {
+    const openMeeting = (meetingUrl) => {
+      if (!meetingUrl) {
+        alert('This class does not have a live session URL yet. Please generate it first.')
+        return
+      }
+
+      window.open(meetingUrl, '_blank', 'noopener,noreferrer')
+    }
+
+    const meetingUrl = cls.meeting_url || cls.join_url
+    if (meetingUrl) {
+      openMeeting(meetingUrl)
+      return
+    }
+
+    generateAndOpenLiveClass(cls.class_id, session.token)
+      .then(fetchLiveStudio)
+      .catch((err) => alert(err.message || 'Unable to generate the live session right now.'))
+  }
+
+  const handleConnectGoogleMeet = async () => {
+    try {
+      if (!session?.token) {
+        alert('Please log in to connect Google Meet.')
+        return
+      }
+
+      const data = await request('/auth/google/meet', {
+        headers: { Authorization: `Bearer ${session.token}` },
+      })
+
+      if (!data?.authUrl) {
+        throw new Error('Google authorization URL was not returned.')
+      }
+
+      window.location.href = data.authUrl
+    } catch (err) {
+      alert(err.message)
+    }
+  }
+
+  const handleStatusUpdate = async (classId, nextStatus, confirmMeetEnded = false) => {
     try {
       await request(`/live-class/status/${classId}`, {
         method: 'PATCH',
         headers,
-        body: JSON.stringify({ status: nextStatus }),
+        body: JSON.stringify({ status: nextStatus, confirm_meet_ended: confirmMeetEnded }),
       })
       fetchLiveStudio()
     } catch (err) {
@@ -102,6 +205,19 @@ export default function TeacherLiveStudio() {
         headers,
         body: JSON.stringify({ is_recording: nextRecording }),
       })
+      fetchLiveStudio()
+    } catch (err) {
+      alert(err.message)
+    }
+  }
+
+  const handleSyncRecording = async (cls) => {
+    try {
+      const result = await request(`/live-class/${cls.class_id}/sync-recording`, {
+        method: 'POST',
+        headers,
+      })
+      alert(result.message || 'Recording metadata synchronized successfully')
       fetchLiveStudio()
     } catch (err) {
       alert(err.message)
@@ -162,10 +278,28 @@ export default function TeacherLiveStudio() {
           <p className="eyebrow">BROADCAST STUDIO</p>
           <h2>Live Classroom & Recording Manager</h2>
         </div>
-        <button className="primary-button" onClick={() => setShowCreate(!showCreate)}>
-          {showCreate ? 'Cancel' : '+ Schedule Live Class'}
-        </button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="outline-button" onClick={handleConnectGoogleMeet} disabled={googleStatus.loading}>
+            {googleStatus.loading ? 'Checking Google...' : googleStatus.connected ? 'Reconnect Google Meet' : 'Connect Google Meet'}
+          </button>
+          <button className="primary-button" onClick={() => setShowCreate(!showCreate)}>
+            {showCreate ? 'Cancel' : '+ Schedule Live Class'}
+          </button>
+        </div>
       </div>
+
+      {session?.role === 'TEACHER' && (
+        <p role="status" style={{ margin: '0 0 16px', color: googleStatus.connected ? '#166534' : 'var(--muted)', fontSize: '12px' }}>
+          {googleStatus.connected
+            ? `Google Meet connected as ${googleStatus.account_email || 'verified Google account'}.`
+            : googleStatus.verificationError
+              ? 'Google account status could not be verified right now. Try again shortly.'
+              : googleStatus.reconnect_required
+                ? 'Google authorization has expired or was revoked. Reconnect before scheduling Meet classes.'
+                : 'Google Meet is not connected. Connect a verified Google account before scheduling Meet classes.'}
+          {googleNotice && ` ${googleNotice}`}
+        </p>
+      )}
 
       {showCreate && (
         <form onSubmit={handleCreate} style={{ padding: '25px', border: '1px solid var(--line)', background: '#FFFFFF', marginBottom: '30px', display: 'grid', gap: '15px' }}>
@@ -204,8 +338,22 @@ export default function TeacherLiveStudio() {
             </label>
           </div>
 
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', maxWidth: '260px' }}>
+            <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)' }}>
+              Duration (minutes)
+              <input
+                type="number"
+                min="15"
+                step="15"
+                value={form.duration_minutes}
+                onChange={(e) => setForm({ ...form, duration_minutes: e.target.value })}
+                style={{ padding: '10px', border: '1px solid var(--line)' }}
+              />
+            </label>
+          </div>
+
           <button className="primary-button" style={{ justifySelf: 'start' }} type="submit">
-            Publish Class & Generate Jitsi Room
+            Publish Class & Generate Meet Link
           </button>
         </form>
       )}
@@ -242,7 +390,7 @@ export default function TeacherLiveStudio() {
       )}
 
       {loading ? (
-        <div className="empty-state">Loading live classes...</div>
+        <Skeleton variant="class-list" count={3} label="Loading live classes" />
       ) : classes.length === 0 ? (
         <div className="empty-state">No live classes scheduled yet.</div>
       ) : (
@@ -300,6 +448,11 @@ export default function TeacherLiveStudio() {
                   <p style={{ font: '11px var(--mono)', color: 'var(--muted)', margin: 0 }}>
                     Scheduled: {new Date(cls.scheduled_time).toLocaleString()} · Room: {cls.room_name}
                   </p>
+                  {cls.meet_sync_unsupported && (
+                    <p style={{ color: '#9a3412', fontSize: '11px', margin: '6px 0 0' }}>
+                      End this older Meet in Google Meet, then confirm the LMS class end here.
+                    </p>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -338,6 +491,14 @@ export default function TeacherLiveStudio() {
                   <button
                     className="outline-button"
                     style={{ fontSize: '11px', padding: '8px 12px' }}
+                    onClick={() => handleSyncRecording(cls)}
+                  >
+                    🔄 Sync Meet
+                  </button>
+
+                  <button
+                    className="outline-button"
+                    style={{ fontSize: '11px', padding: '8px 12px' }}
                     onClick={() => {
                       setActiveRecordingModal(cls)
                       setRecordingForm({ recording_url: cls.recording_url || '', recording_duration: cls.recording_duration || '' })
@@ -360,9 +521,9 @@ export default function TeacherLiveStudio() {
                     <button
                       className="outline-button"
                       style={{ borderColor: '#c0392b', color: '#c0392b', padding: '8px 12px', fontSize: '11px' }}
-                      onClick={() => handleStatusUpdate(cls.class_id, 'ended')}
+                      onClick={() => handleStatusUpdate(cls.class_id, 'ended', Boolean(cls.meet_sync_unsupported))}
                     >
-                      End ✕
+                      {cls.meet_sync_unsupported ? 'Confirm Meet ended' : cls.meeting_provider === 'google-meet' ? 'End Meet for everyone ✕' : 'End Class ✕'}
                     </button>
                   )}
 
@@ -370,9 +531,9 @@ export default function TeacherLiveStudio() {
                     <button
                       className="primary-button"
                       style={{ background: isLive ? 'var(--orange)' : 'var(--ink)', padding: '8px 14px', fontSize: '11px' }}
-                      onClick={() => setActiveLiveModal(cls)}
+                      onClick={() => handleOpenClassroom(cls)}
                     >
-                      Enter Room ↗
+                      {cls.meeting_url || cls.join_url ? 'Open Google Meet ↗' : 'Open Class ↗'}
                     </button>
                   )}
 
@@ -455,11 +616,6 @@ export default function TeacherLiveStudio() {
             </form>
           </div>
         </div>
-      )}
-
-      {/* Live Class Modal */}
-      {activeLiveModal && (
-        <LiveClassModal liveClass={activeLiveModal} onClose={() => setActiveLiveModal(null)} onRecordingToggle={() => fetchLiveStudio()} />
       )}
 
       {/* Attendance Modal */}

@@ -12,6 +12,7 @@ import Auth from './pages/Auth'
 // Application Pages
 import CourseDetail from './pages/CourseDetail'
 import LearningRoom from './pages/LearningRoom'
+import ScalableLiveClassPage from './pages/ScalableLiveClassPage'
 import Profile from './pages/Profile'
 import Dashboard from './pages/Dashboard'
 import Forms from './pages/Forms'
@@ -23,6 +24,7 @@ import StudentExploreCourses from './pages/student/StudentExploreCourses'
 import StudentAssignments from './pages/student/StudentAssignments'
 import StudentLiveClasses from './pages/student/StudentLiveClasses'
 import StudentPayments from './pages/student/StudentPayments'
+import StudentCart from './pages/student/StudentCart'
 import StudentJobs from './pages/student/StudentJobs'
 import StudentCertificates from './pages/student/StudentCertificates'
 
@@ -115,6 +117,16 @@ function App() {
         }
       />
 
+      <Route
+        path="/scalable-live-class/:classId"
+        element={
+          <ProtectedRoute>
+            <ScalableLiveClassPage />
+          </ProtectedRoute>
+        }
+      />
+
+
       {/* ========================================================= */}
       {/* PERSISTENT WORKSPACE LAYOUT (WITH FIXED COLLAPSIBLE SIDEBAR) */}
       {/* ========================================================= */}
@@ -168,6 +180,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['STUDENT']}>
               <StudentPayments />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/student/cart"
+          element={
+            <ProtectedRoute allowedRoles={['STUDENT']}>
+              <StudentCart />
             </ProtectedRoute>
           }
         />

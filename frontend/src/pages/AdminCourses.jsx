@@ -4,6 +4,7 @@ import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import CourseStudentsModal from '../components/CourseStudentsModal'
 import { mediaUrl } from '../utils/mediaUrl'
+import Skeleton from '../components/Skeleton'
 
 export default function AdminCourses() {
   const { session } = useAuth()
@@ -33,6 +34,10 @@ export default function AdminCourses() {
   const [manageCouponsTitle, setManageCouponsTitle] = useState('')
   const [couponsList, setCouponsList] = useState([])
   const [couponsLoading, setCouponsLoading] = useState(false)
+  const [bulkTiers, setBulkTiers] = useState([])
+  const [bulkTierDraft, setBulkTierDraft] = useState({ minimum_courses: '2', discount_percent: '' })
+  const [bulkTiersLoading, setBulkTiersLoading] = useState(true)
+  const [bulkTiersSaving, setBulkTiersSaving] = useState(false)
 
   const fetchCourses = () => {
     setLoading(true)
@@ -43,6 +48,47 @@ export default function AdminCourses() {
   }
 
   useEffect(() => { fetchCourses() }, [])
+
+  useEffect(() => {
+    request('/payment/admin/bulk-discounts', { headers })
+      .then((data) => setBulkTiers(data.tiers || []))
+      .catch((err) => setMessage(err.message))
+      .finally(() => setBulkTiersLoading(false))
+  }, [])
+
+  const addBulkTier = () => {
+    const minimumCourses = Number(bulkTierDraft.minimum_courses)
+    const discountPercent = Number(bulkTierDraft.discount_percent)
+    if (!Number.isInteger(minimumCourses) || minimumCourses < 2 || discountPercent <= 0 || discountPercent > 100) {
+      setMessage('Use a course threshold of 2 or more and a discount between 1 and 100%.')
+      return
+    }
+    if (bulkTiers.some((tier) => tier.minimum_courses === minimumCourses)) {
+      setMessage('That course-count threshold already exists.')
+      return
+    }
+    setBulkTiers((current) => [...current, { minimum_courses: minimumCourses, discount_percent: discountPercent }]
+      .sort((left, right) => left.minimum_courses - right.minimum_courses))
+    setBulkTierDraft({ minimum_courses: String(minimumCourses + 1), discount_percent: '' })
+    setMessage('Tier added. Save the bulk discount settings to publish it.')
+  }
+
+  const saveBulkTiers = async () => {
+    setBulkTiersSaving(true)
+    try {
+      const result = await request('/payment/admin/bulk-discounts', {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ tiers: bulkTiers }),
+      })
+      setBulkTiers(result.tiers || [])
+      setMessage(result.message || 'Multi-course discounts saved.')
+    } catch (err) {
+      setMessage(err.message)
+    } finally {
+      setBulkTiersSaving(false)
+    }
+  }
 
   const addCourse = async (e) => {
     e.preventDefault()
@@ -174,6 +220,40 @@ export default function AdminCourses() {
 
         {message && <p className="form-message" style={{ marginBottom: '20px' }}>{message}</p>}
 
+        <section className="bulk-discount-panel" aria-labelledby="bulk-discount-title">
+          <div className="bulk-discount-heading">
+            <div>
+              <p className="eyebrow">CART PRICING</p>
+              <h3 id="bulk-discount-title">Multi-course discount tiers</h3>
+              <p>These cart-wide discounts stack after each course's own flash discount and coupon.</p>
+            </div>
+            <button className="primary-button" type="button" onClick={saveBulkTiers} disabled={bulkTiersLoading || bulkTiersSaving}>
+              {bulkTiersSaving ? 'Saving…' : 'Save tiers'}
+            </button>
+          </div>
+
+          {bulkTiersLoading ? (
+            <Skeleton variant="rows" count={2} label="Loading multi-course discounts" />
+          ) : (
+            <>
+              <div className="bulk-discount-tier-list">
+                {bulkTiers.length ? bulkTiers.map((tier) => (
+                  <div className="bulk-discount-tier" key={tier.minimum_courses}>
+                    <span><strong>{tier.minimum_courses}+</strong> courses</span>
+                    <strong>{tier.discount_percent}% off cart subtotal</strong>
+                    <button className="text-button" type="button" aria-label={`Remove ${tier.minimum_courses}-course discount tier`} onClick={() => setBulkTiers((current) => current.filter((item) => item.minimum_courses !== tier.minimum_courses))}>Remove</button>
+                  </div>
+                )) : <p className="bulk-discount-empty">No cart-wide discount tiers are active.</p>}
+              </div>
+              <div className="bulk-discount-form">
+                <label>Minimum courses<input type="number" min="2" max="100" value={bulkTierDraft.minimum_courses} onChange={(event) => setBulkTierDraft((current) => ({ ...current, minimum_courses: event.target.value }))} /></label>
+                <label>Cart discount %<input type="number" min="1" max="100" value={bulkTierDraft.discount_percent} onChange={(event) => setBulkTierDraft((current) => ({ ...current, discount_percent: event.target.value }))} /></label>
+                <button className="outline-button" type="button" onClick={addBulkTier}>Add tier</button>
+              </div>
+            </>
+          )}
+        </section>
+
         {/* Add Course Form */}
         {showAdd && (
           <form onSubmit={addCourse} style={{ padding: '25px', border: '1px solid var(--line)', background: '#FFFFFF', marginBottom: '30px', display: 'grid', gap: '15px' }}>
@@ -296,7 +376,7 @@ export default function AdminCourses() {
 
             {/* Coupons List */}
             {couponsLoading ? (
-              <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Loading coupons...</p>
+              <Skeleton variant="rows" count={2} label="Loading course coupons" />
             ) : couponsList.length === 0 ? (
               <p style={{ color: 'var(--muted)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>No coupons yet. Create one above.</p>
             ) : (
@@ -350,7 +430,7 @@ export default function AdminCourses() {
 
         {/* Course List */}
         {loading ? (
-          <div className="empty-state">Loading courses...</div>
+          <Skeleton variant="course-cards" count={3} label="Loading courses" />
         ) : courses.length === 0 ? (
           <div className="empty-state">No courses in the catalogue yet. Add your first course above.</div>
         ) : (

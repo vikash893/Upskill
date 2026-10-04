@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import { mediaUrl } from '../utils/mediaUrl'
+import Skeleton from '../components/Skeleton'
 
 const audienceNames = { students: 'All students', teachers: 'All teachers', everyone: 'Everyone' }
 
@@ -235,7 +236,7 @@ export default function Announcements() {
         )}
 
         {loading ? (
-          <div className="empty-state">Loading announcements...</div>
+          <Skeleton variant="class-list" count={3} label="Loading announcements" />
         ) : announcements.length === 0 ? (
           <div className="announcement-empty">
             <span>ALL CAUGHT UP</span>

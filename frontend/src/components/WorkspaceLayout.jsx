@@ -16,6 +16,7 @@ function getNavSections(role) {
           { label: 'Dashboard', path: '/dashboard' },
           { label: 'My Courses', path: '/student/my-courses' },
           { label: 'Explore Courses', path: '/student/explore-courses' },
+          { label: 'Course Cart', path: '/student/cart' },
           { label: 'Assignments', path: '/student/assignments' },
           { label: 'Live Classes', path: '/student/live-classes' },
           { label: 'Announcements', path: '/announcements' },

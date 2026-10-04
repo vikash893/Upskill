@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
+import Skeleton from '../components/Skeleton'
 
 const formatDate = (value) => new Date(value).toLocaleDateString(undefined, {
   day: '2-digit',
@@ -206,7 +207,7 @@ export default function AdminCertificates() {
                         <span>{availableStudents.length} to receive · {roster.filter((student) => student.already_issued).length} already issued</span>
                       </div>
                       {rosterLoading ? (
-                        <p className="certificate-roster-empty">Loading course students...</p>
+                        <Skeleton variant="rows" count={3} label="Loading course students" />
                       ) : roster.length ? (
                         <div className="certificate-roster-list">
                           {roster.map((student) => (

@@ -4,6 +4,7 @@ import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import CourseCard from '../components/CourseCard'
 import PaymentModal from '../components/PaymentModal'
+import Skeleton from '../components/Skeleton'
 
 export default function Courses() {
   const { session } = useAuth()
@@ -116,7 +117,7 @@ export default function Courses() {
         </div>
 
         {loading ? (
-          <div className="empty-state">Loading catalogue...</div>
+          <Skeleton variant="course-cards" count={3} label="Loading course catalogue" />
         ) : error ? (
           <div className="empty-state">{error}</div>
         ) : filtered.length ? (

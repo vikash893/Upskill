@@ -3,6 +3,7 @@ import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import Brand from './Brand'
 import { celebrate, prepareCelebrationAudio } from '../utils/celebration'
+import { loadRazorpayCheckout } from '../utils/razorpay'
 
 export default function PaymentModal({ course, initialPlan = 'monthly', onClose, onSuccess }) {
   const { session } = useAuth()
@@ -11,6 +12,9 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
   const [couponApplied, setCouponApplied] = useState(null)
   const [couponError, setCouponError] = useState('')
   const [verifyingCoupon, setVerifyingCoupon] = useState(false)
+  const [serverQuote, setServerQuote] = useState(null)
+  const [quoteLoading, setQuoteLoading] = useState(false)
+  const [quoteError, setQuoteError] = useState('')
   
   // Razorpay state
   const [processingRazorpay, setProcessingRazorpay] = useState(false)
@@ -21,15 +25,32 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
   const [isSuccess, setIsSuccess] = useState(false)
   const hasLoggedCancel = useRef(false)
 
-  // Ensure Razorpay SDK script is loaded
   useEffect(() => {
-    if (!window.Razorpay) {
-      const script = document.createElement('script')
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js'
-      script.async = true
-      document.body.appendChild(script)
+    if (!session?.token) {
+      setServerQuote(null)
+      return undefined
     }
-  }, [])
+
+    let active = true
+    setQuoteLoading(true)
+    setQuoteError('')
+    request('/payment/quote', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.token}` },
+      body: JSON.stringify({
+        items: [{
+          course_id: course.course_id,
+          plan_type: selectedPlan,
+          coupon_code: couponApplied?.coupon_code || '',
+        }],
+      }),
+    })
+      .then((data) => { if (active) setServerQuote(data.quote) })
+      .catch((err) => { if (active) { setServerQuote(null); setQuoteError(err.message) } })
+      .finally(() => { if (active) setQuoteLoading(false) })
+
+    return () => { active = false }
+  }, [course.course_id, selectedPlan, couponApplied?.coupon_code, session?.token])
 
   // Calculate pricing based on selected plan
   const monthlyBase = course.monthly_amount > 0 ? course.monthly_amount : (course.course_amount || 0)
@@ -42,10 +63,16 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
 
   let couponDiscountAmount = 0
   if (couponApplied) {
-    couponDiscountAmount = Math.round((actualAmount * couponApplied.coupon_discount) / 100)
+    couponDiscountAmount = Math.round((priceAfterFlash * couponApplied.coupon_discount) / 100)
   }
 
   const finalPayable = Math.max(0, priceAfterFlash - couponDiscountAmount)
+  const quotedLine = serverQuote?.items?.[0]
+  const quoteMatchesSelection = quotedLine?.plan_type === selectedPlan &&
+    (quotedLine?.coupon_code || '') === (couponApplied?.coupon_code || '')
+  const displayedFlashDiscount = quoteMatchesSelection ? quotedLine.course_discount_amount : flashDiscountAmount
+  const displayedCouponDiscount = quoteMatchesSelection ? quotedLine.coupon_discount_amount : couponDiscountAmount
+  const displayedFinalPayable = quoteMatchesSelection ? serverQuote.final_amount : finalPayable
 
   // Calculated Expiry Date
   const expiryDays = selectedPlan === 'yearly' ? 365 : 30
@@ -102,6 +129,7 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
     setProcessingRazorpay(true)
 
     try {
+      await loadRazorpayCheckout()
       // Step 1: Call Backend to Create Order
       const orderData = await request('/create-order', {
         method: 'POST',
@@ -113,10 +141,8 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
         }),
       })
 
-      const razorpayKey =
-        orderData.key_id ||
-        import.meta.env.VITE_RAZORPAY_KEY_ID ||
-        'rzp_test_TgmZfY6NUla02O'
+      const razorpayKey = orderData.key_id
+      if (!razorpayKey || !orderData.order_id) throw new Error('Razorpay checkout configuration was not returned by the server.')
 
       // Prepare Razorpay options
       const options = {
@@ -139,9 +165,6 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
-                course_id: course.course_id,
-                plan_type: selectedPlan,
-                coupon_code: couponApplied ? couponApplied.coupon_code : undefined,
               }),
             })
 
@@ -159,11 +182,12 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
             setErrorMessage(verErr.message || 'Payment verification failed. Please contact support.')
           } finally {
             setVerifyingSignature(false)
+            setProcessingRazorpay(false)
           }
         },
         prefill: {
-          name: session?.user?.name || '',
-          email: session?.user?.email || '',
+          name: session?.name || '',
+          email: session?.email || '',
         },
         notes: {
           course_id: course.course_id,
@@ -192,7 +216,6 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
       })
 
       rzpInstance.open()
-      setProcessingRazorpay(false)
     } catch (err) {
       setErrorMessage(err.message || 'Failed to initiate Razorpay checkout')
       setProcessingRazorpay(false)
@@ -217,7 +240,7 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
               <p style={{ margin: '0 0 6px' }}><strong>Course:</strong> {course.course_title}</p>
               <p style={{ margin: '0 0 6px' }}><strong>Plan Selected:</strong> {selectedPlan === 'yearly' ? 'Yearly Access (365 Days)' : 'Monthly Access (30 Days)'}</p>
               <p style={{ margin: '0 0 6px' }}><strong>Plan Expiry:</strong> {estimatedExpiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-              <p style={{ margin: '0 0 6px' }}><strong>Amount Paid:</strong> ₹{finalPayable}</p>
+              <p style={{ margin: '0 0 6px' }}><strong>Amount Paid:</strong> ₹{razorpaySuccessData?.data?.quote?.final_amount ?? displayedFinalPayable}</p>
               {razorpaySuccessData && (
                 <p style={{ margin: 0, fontFamily: 'var(--mono)', fontSize: '12px', color: '#166534' }}>
                   <strong>Payment ID:</strong> {razorpaySuccessData.paymentId}
@@ -307,15 +330,15 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
 
               {flashDiscount > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '12px', color: 'var(--orange)' }}>
-                  <span>Flash Discount ({flashDiscount}%)</span>
-                  <span>- ₹{flashDiscountAmount}</span>
+                  <span>Course Discount ({flashDiscount}%)</span>
+                  <span>- ₹{displayedFlashDiscount}</span>
                 </div>
               )}
 
               {couponApplied && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '12px', color: '#27ae60' }}>
                   <span>Coupon Applied ({couponApplied.coupon_code} - {couponApplied.coupon_discount}%)</span>
-                  <span>- ₹{couponDiscountAmount}</span>
+                  <span>- ₹{displayedCouponDiscount}</span>
                 </div>
               )}
 
@@ -326,7 +349,7 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
                     Access Duration: {selectedPlan === 'yearly' ? '365 Days' : '30 Days'} (until {estimatedExpiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})
                   </span>
                 </div>
-                <strong style={{ fontSize: '24px', color: 'var(--orange)' }}>₹{finalPayable}</strong>
+                <strong style={{ fontSize: '24px', color: 'var(--orange)' }}>{quoteLoading ? 'Updating…' : `₹${displayedFinalPayable}`}</strong>
               </div>
             </div>
 
@@ -351,6 +374,7 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
               </div>
             )}
             {couponError && <p className="form-message" style={{ margin: '-10px 0 15px' }}>{couponError}</p>}
+            {quoteError && session?.token && <p className="form-message" style={{ margin: '-10px 0 15px' }}>{quoteError}</p>}
 
             {errorMessage && (
               <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: '12px', borderRadius: '4px', marginBottom: '16px' }}>
@@ -378,7 +402,7 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
                 <button
                   className="primary-button"
                   style={{ flex: 1, padding: '14px', fontSize: '14px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
-                  disabled={processingRazorpay || verifyingSignature}
+                  disabled={processingRazorpay || verifyingSignature || quoteLoading || (Boolean(session?.token) && !quoteMatchesSelection)}
                   onClick={handleRazorpayPayment}
                   type="button"
                 >
@@ -388,7 +412,7 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
                     'Opening Razorpay Modal...'
                   ) : (
                     <>
-                      Pay ₹{finalPayable} via Razorpay ↗
+                      Pay ₹{displayedFinalPayable} via Razorpay ↗
                     </>
                   )}
                 </button>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { API_URL, request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
+import Skeleton from '../../components/Skeleton'
 
 const formatDate = (value) => new Date(value).toLocaleDateString(undefined, {
   day: '2-digit',
@@ -65,7 +66,7 @@ export default function StudentCertificates() {
 
         {error && <p className="student-certificate-error" role="alert">{error}</p>}
         {loading ? (
-          <div className="empty-state">Loading your certificates...</div>
+          <Skeleton variant="class-list" count={3} label="Loading certificates" />
         ) : certificates.length === 0 ? (
           <div className="student-certificate-empty">
             <span className="student-certificate-empty-mark" aria-hidden="true">U</span>

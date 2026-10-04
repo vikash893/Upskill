@@ -3,6 +3,7 @@ import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import { mediaUrl } from '../utils/mediaUrl'
 import { useActivity } from '../context/activityContextStore'
+import Skeleton from '../components/Skeleton'
 
 export default function Profile() {
   const { session, logout, login } = useAuth()
@@ -176,7 +177,7 @@ export default function Profile() {
     return (
       <main>
         <section className="content-section">
-          <div className="empty-state">Loading profile...</div>
+          <Skeleton variant="profile" label="Loading profile" />
         </section>
       </main>
     )

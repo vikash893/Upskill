@@ -3,6 +3,7 @@ import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import ReceiptModal from '../components/ReceiptModal'
 import { mediaUrl } from '../utils/mediaUrl'
+import Skeleton from '../components/Skeleton'
 
 export default function AdminPayments() {
   const { session } = useAuth()
@@ -122,7 +123,7 @@ export default function AdminPayments() {
 
         {/* Payments List */}
         {loading ? (
-          <div className="empty-state">Loading payment records...</div>
+          <Skeleton variant="class-list" count={4} label="Loading payment records" />
         ) : payments.length === 0 ? (
           <div className="empty-state">No payment records found for this status.</div>
         ) : (
@@ -182,12 +183,17 @@ export default function AdminPayments() {
                     </div>
                     {p.discount_applied > 0 && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--orange)', fontSize: '11px' }}>
-                        <span>Discount:</span> <span>-{p.discount_applied}%</span>
+                        <span>Course discount ({p.discount_applied}%):</span> <span>-₹{p.course_discount_amount || 0}</span>
                       </div>
                     )}
                     {p.coupon_code && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', color: '#166534', fontSize: '11px' }}>
-                        <span>Coupon ({p.coupon_code}):</span> <span>-{p.coupon_discount}%</span>
+                        <span>Coupon ({p.coupon_code}):</span> <span>-₹{p.coupon_discount_amount || 0}</span>
+                      </div>
+                    )}
+                    {p.bulk_discount_amount > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#167253', fontSize: '11px' }}>
+                        <span>Cart discount ({p.bulk_discount_applied}%):</span> <span>-₹{p.bulk_discount_amount}</span>
                       </div>
                     )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, marginTop: '4px', borderTop: '1px solid var(--line)', paddingTop: '4px' }}>

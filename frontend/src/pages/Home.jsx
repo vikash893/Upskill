@@ -62,7 +62,7 @@ export default function Home({ onAuthOpen }) {
     },
     {
       q: 'How do Live Classes and Recorded Lectures work?',
-      a: 'Inside each course classroom, you will find dedicated sections for Live Classes (real-time Jitsi video sessions scheduled by your teacher), Recorded Lectures (with downloadable PDF notes and video archives), and Assignments (where you can submit work and receive grades).'
+      a: 'Inside each course classroom, you will find dedicated sections for Live Classes (native real-time video sessions scheduled by your teacher), Recorded Lectures (with downloadable PDF notes and video archives), and Assignments (where you can submit work and receive grades).'
     },
     {
       q: 'Can I upload my own profile photo as a student?',

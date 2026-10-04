@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
+import Skeleton from '../components/Skeleton'
 
 const audienceLabels = { everyone: 'Everyone', student: 'Student form', teacher: 'Teacher form' }
 
@@ -87,7 +88,7 @@ export default function Forms() {
           <span className="audience-form-count">{forms.length} available</span>
         </header>
         {error && <p className="audience-form-error" role="alert">{error}</p>}
-        {loading ? <div className="empty-state">Loading available forms...</div> : forms.length === 0 ? (
+        {loading ? <Skeleton variant="class-list" count={3} label="Loading available forms" /> : forms.length === 0 ? (
           <div className="audience-form-empty"><span>NO OPEN FORMS</span><h2>Nothing to fill out right now.</h2><p>When a form is made available to you, it will appear here.</p></div>
         ) : (
           <div className="audience-form-grid">

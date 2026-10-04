@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
 import { mediaUrl } from '../../utils/mediaUrl'
+import Skeleton from '../../components/Skeleton'
 
 export default function TeacherStudents() {
   const { session } = useAuth()
@@ -76,7 +77,7 @@ export default function TeacherStudents() {
       />
 
       {loading ? (
-        <div className="empty-state">Loading enrolled students...</div>
+        <Skeleton variant="table" count={5} label="Loading enrolled students" />
       ) : filtered.length === 0 ? (
         <div className="empty-state">No students found matching your search.</div>
       ) : (

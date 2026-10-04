@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
+import Skeleton from '../../components/Skeleton'
 
 const PRESET_BRANCHES = ['All Branches', 'B.Tech', 'BCA', 'BBA', 'MCA', 'MBA', 'B.Sc', 'B.Com', 'Diploma']
 const SOURCE_PLATFORMS = ['LinkedIn', 'Instagram', 'Indeed', 'Unstop', 'Naukri', 'Company Portal', 'Telegram', 'Other']
@@ -560,7 +561,7 @@ export default function AdminJobs() {
 
         {/* Listings List */}
         {loading ? (
-          <div className="empty-state">Loading career opportunities...</div>
+          <Skeleton variant="class-list" count={3} label="Loading career opportunities" />
         ) : jobs.length === 0 ? (
           <div className="empty-state">
             <p style={{ margin: 0, fontSize: '15px' }}>No jobs or internships found matching your criteria.</p>

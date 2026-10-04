@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
+import Skeleton from '../../components/Skeleton'
 
 const PRESET_BRANCHES = ['All Branches', 'B.Tech', 'BCA', 'BBA', 'MCA', 'MBA', 'B.Sc', 'B.Com']
 const SOURCE_PLATFORMS = ['All', 'LinkedIn', 'Instagram', 'Indeed', 'Unstop', 'Naukri', 'Other']
@@ -192,7 +193,7 @@ export default function StudentJobs() {
 
         {/* Opportunities Grid / Cards */}
         {loading ? (
-          <div className="empty-state">Finding the latest job and internship openings...</div>
+          <Skeleton variant="class-list" count={4} label="Loading job and internship openings" />
         ) : jobs.length === 0 ? (
           <div className="empty-state">
             <p style={{ margin: 0, fontSize: '16px' }}>No openings found matching your criteria.</p>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
 import ReceiptModal from '../../components/ReceiptModal'
+import Skeleton from '../../components/Skeleton'
 
 export default function StudentPayments() {
   const { session } = useAuth()
@@ -34,7 +35,7 @@ export default function StudentPayments() {
       </div>
 
       {loading ? (
-        <div className="empty-state">Loading your payment records...</div>
+        <Skeleton variant="table" count={5} label="Loading payment history" />
       ) : payments.length === 0 ? (
         <div className="empty-state">No payment records found on your account.</div>
       ) : (
@@ -108,14 +109,15 @@ export default function StudentPayments() {
                   <strong style={{ fontSize: '15px' }}>₹{p.final_amount}</strong>
                   {p.discount_applied > 0 && (
                     <span style={{ display: 'block', font: '10px var(--mono)', color: 'var(--orange)' }}>
-                      -{p.discount_applied}% flash
+                      Course discount −₹{p.course_discount_amount ?? 0}
                     </span>
                   )}
                   {p.coupon_code && (
                     <span style={{ display: 'block', font: '10px var(--mono)', color: '#166534' }}>
-                      Coupon: {p.coupon_code}
+                      Coupon {p.coupon_code} −₹{p.coupon_discount_amount ?? 0}
                     </span>
                   )}
+                  {p.bulk_discount_amount > 0 && <span style={{ display: 'block', font: '10px var(--mono)', color: '#167253' }}>Cart discount −₹{p.bulk_discount_amount}</span>}
                 </div>
 
                 {/* Status Badge & Notes */}

@@ -45,7 +45,7 @@ export default function About({ onAuthOpen }) {
   const faqs = [
     {
       q: 'How does UniSkill differ from traditional online video platforms?',
-      a: 'Unlike passive pre-recorded video sites, UniSkill combines live interactive video studio sessions (Jitsi Meet integration), structured problem assignments with personalized teacher evaluations, downloadable lesson assets, and flexible monthly or yearly subscription access.'
+      a: 'Unlike passive pre-recorded video sites, UniSkill combines native live interactive video studio sessions, structured problem assignments with personalized teacher evaluations, downloadable lesson assets, and flexible monthly or yearly subscription access.'
     },
     {
       q: 'Can I choose between Monthly and Yearly course access plans?',

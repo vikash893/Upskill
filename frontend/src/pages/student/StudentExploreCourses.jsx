@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
 import CourseCard from '../../components/CourseCard'
 import PaymentModal from '../../components/PaymentModal'
+import Skeleton from '../../components/Skeleton'
+import { usePaymentCart } from '../../context/PaymentCartContext'
 
 export default function StudentExploreCourses() {
   const { session } = useAuth()
+  const { items: cartItems, addCourse } = usePaymentCart()
   const navigate = useNavigate()
   const [courses, setCourses] = useState([])
   const [filtered, setFiltered] = useState([])
@@ -104,6 +107,9 @@ export default function StudentExploreCourses() {
             }}
           />
         </div>
+        <Link className="primary-button student-cart-link" to="/student/cart">
+          Course cart ({cartItems.length})
+        </Link>
       </div>
 
       {/* Filter Tabs */}
@@ -135,7 +141,7 @@ export default function StudentExploreCourses() {
 
       {/* Course Grid */}
       {loading ? (
-        <div className="empty-state">Loading Academy Catalogue...</div>
+        <Skeleton variant="course-cards" count={3} label="Loading academy catalogue" />
       ) : error ? (
         <div className="empty-state" style={{ color: '#dc2626' }}>{error}</div>
       ) : filtered.length === 0 ? (
@@ -154,11 +160,14 @@ export default function StudentExploreCourses() {
         <div className="course-grid">
           {filtered.map((course) => {
             const isEnrolled = myCourseIds.includes(course.course_id)
+            const isInCart = cartItems.some((item) => item.course_id === course.course_id)
             return (
               <div key={course.course_id} style={{ display: 'flex', flexDirection: 'column' }}>
                 <CourseCard
                   course={course}
                   isEnrolled={isEnrolled}
+                  isInCart={isInCart}
+                  onAddToCart={() => isInCart ? navigate('/student/cart') : addCourse(course.course_id)}
                   onEnrollFree={(e) => handleEnrollFree(e, course.course_id)}
                   onEnrollPaid={(e) => {
                     e.stopPropagation()

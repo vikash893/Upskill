@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { mediaUrl } from '../utils/mediaUrl'
 
-export default function CourseCard({ course }) {
+export default function CourseCard({ course, onAddToCart, isInCart = false, isEnrolled = false }) {
   const navigate = useNavigate()
   const image = mediaUrl(course.photo)
 
@@ -24,6 +24,16 @@ export default function CourseCard({ course }) {
         <button className="text-button" type="button" onClick={(e) => { e.stopPropagation(); navigate(`/course/${course.course_id}`) }}>
           View details <span>↗</span>
         </button>
+        {onAddToCart && course.course_type === 'paid' && !isEnrolled && (
+          <button
+            className="outline-button course-cart-button"
+            type="button"
+            aria-pressed={isInCart}
+            onClick={(event) => { event.stopPropagation(); onAddToCart(course) }}
+          >
+            {isInCart ? 'View course cart ↗' : 'Add to cart +'}
+          </button>
+        )}
       </div>
     </article>
   )

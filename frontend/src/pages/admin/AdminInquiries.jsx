@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
+import Skeleton from '../../components/Skeleton'
 
 export default function AdminInquiries() {
   const { session } = useAuth()
@@ -176,7 +177,7 @@ export default function AdminInquiries() {
 
       {/* INQUIRIES LIST */}
       {loading ? (
-        <div className="empty-state">Loading user inquiries...</div>
+        <Skeleton variant="table" count={5} label="Loading inquiries" />
       ) : inquiries.length === 0 ? (
         <div className="empty-state">No inquiries found matching the selected filter.</div>
       ) : (

@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
-import LiveClassModal from '../../components/LiveClassModal'
+import { openLiveClassWithAttendance } from '../../utils/openLiveClass'
+import Skeleton from '../../components/Skeleton'
 
 export default function StudentLiveClasses() {
   const { session } = useAuth()
   const [liveClasses, setLiveClasses] = useState([])
   const [loading, setLoading] = useState(true)
-  const [activeLiveModal, setActiveLiveModal] = useState(null)
   const [selectedPlaybackClass, setSelectedPlaybackClass] = useState(null)
   const [filterTab, setFilterTab] = useState('all') // 'all', 'live', 'recorded'
 
@@ -15,6 +15,19 @@ export default function StudentLiveClasses() {
     if (!url) return ''
     if (url.startsWith('http://') || url.startsWith('https://')) return url
     return `http://localhost:8000/${url.replace(/^\/+/, '')}`
+  }
+
+  const handleJoinClass = async (cls) => {
+    if (cls.status !== 'live') {
+      alert('Attendance check-in is available after the instructor starts the class.')
+      return
+    }
+
+    try {
+      await openLiveClassWithAttendance(cls.class_id, session.token)
+    } catch (err) {
+      alert(err.message || 'Unable to join the live class right now.')
+    }
   }
 
   const fetchLiveClasses = async () => {
@@ -132,7 +145,7 @@ export default function StudentLiveClasses() {
       )}
 
       {loading ? (
-        <div className="empty-state">Loading live schedule & recordings...</div>
+        <Skeleton variant="class-list" count={4} label="Loading live classes and recordings" />
       ) : filteredClasses.length === 0 ? (
         <div className="empty-state">No live classes or recordings found for this category.</div>
       ) : (
@@ -224,9 +237,9 @@ export default function StudentLiveClasses() {
                         padding: '9px 18px',
                         fontSize: '12px',
                       }}
-                      onClick={() => setActiveLiveModal(cls)}
+                      onClick={() => handleJoinClass(cls)}
                     >
-                      {isLiveNow ? 'Join Live Room ↗' : 'Enter Studio ↗'}
+                      {isLiveNow ? 'Join Google Meet ↗' : 'Waiting for instructor ↗'}
                     </button>
                   )}
                 </div>
@@ -236,10 +249,6 @@ export default function StudentLiveClasses() {
         </div>
       )}
 
-      {/* Live Class Modal */}
-      {activeLiveModal && (
-        <LiveClassModal liveClass={activeLiveModal} onClose={() => setActiveLiveModal(null)} />
-      )}
     </div>
   )
 }

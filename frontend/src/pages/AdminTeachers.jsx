@@ -3,6 +3,7 @@ import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import AssignCourseModal from '../components/AssignCourseModal'
 import { mediaUrl } from '../utils/mediaUrl'
+import Skeleton from '../components/Skeleton'
 
 export default function AdminTeachers() {
   const { session } = useAuth()
@@ -119,7 +120,7 @@ export default function AdminTeachers() {
         )}
 
         {loading ? (
-          <div className="empty-state">Loading teachers...</div>
+          <Skeleton variant="rows" count={4} label="Loading teachers" />
         ) : teachers.length === 0 ? (
           <div className="empty-state">No teachers added yet. Click above to register your first instructor.</div>
         ) : (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
+import Skeleton from '../../components/Skeleton'
 
 export default function TeacherAssignments() {
   const { session } = useAuth()
@@ -167,7 +168,7 @@ export default function TeacherAssignments() {
 
       {/* Assignment List & Submissions */}
       {loading ? (
-        <div className="empty-state">Loading assignments...</div>
+        <Skeleton variant="class-list" count={3} label="Loading assignments" />
       ) : assignments.length === 0 ? (
         <div className="empty-state">No assignments created yet. Click above to publish your first task.</div>
       ) : (

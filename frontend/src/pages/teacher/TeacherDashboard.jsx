@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
-import LiveClassModal from '../../components/LiveClassModal'
+import Skeleton from '../../components/Skeleton'
 
 export default function TeacherDashboard() {
   const { session } = useAuth()
@@ -11,7 +11,6 @@ export default function TeacherDashboard() {
   const [courses, setCourses] = useState([])
   const [pendingSubmissions, setPendingSubmissions] = useState([])
   const [liveClasses, setLiveClasses] = useState([])
-  const [activeLiveModal, setActiveLiveModal] = useState(null)
   const [loading, setLoading] = useState(true)
 
   const fetchTeacherData = async () => {
@@ -134,7 +133,7 @@ export default function TeacherDashboard() {
           </div>
 
           {loading ? (
-            <div className="empty-state">Loading courses...</div>
+            <Skeleton variant="class-list" count={3} label="Loading assigned courses" />
           ) : courses.length === 0 ? (
             <div className="empty-state">No courses assigned to your profile yet.</div>
           ) : (
@@ -148,11 +147,11 @@ export default function TeacherDashboard() {
                     </p>
                   </div>
                   <button
-                    className="primary-button"
+                    className="outline-button"
                     style={{ fontSize: '11px', padding: '8px 16px' }}
-                    onClick={() => navigate(`/learning/${c.course_id}`)}
+                    onClick={() => navigate(`/teacher/courses`)}
                   >
-                    Open Studio ↗
+                    View Course ↗
                   </button>
                 </div>
               ))}
@@ -201,10 +200,6 @@ export default function TeacherDashboard() {
         </div>
       </div>
 
-      {/* Live Class Modal */}
-      {activeLiveModal && (
-        <LiveClassModal liveClass={activeLiveModal} onClose={() => setActiveLiveModal(null)} />
-      )}
     </div>
   )
 }

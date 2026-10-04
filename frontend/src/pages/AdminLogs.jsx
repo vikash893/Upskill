@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
+import Skeleton from '../components/Skeleton'
 
 export default function AdminLogs() {
   const { session } = useAuth()
@@ -72,7 +73,7 @@ export default function AdminLogs() {
         />
 
         {loading ? (
-          <div className="empty-state">Loading audit logs...</div>
+          <Skeleton variant="table" count={6} label="Loading audit logs" />
         ) : filtered.length === 0 ? (
           <div className="empty-state">No activity logs found.</div>
         ) : (

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
+import Skeleton from '../../components/Skeleton'
 import {
   Area,
   AreaChart,
@@ -475,9 +476,7 @@ export default function AdminDashboard() {
           </div>
 
           {loading ? (
-            <div className="empty-state">
-              Loading payments...
-            </div>
+            <Skeleton variant="class-list" count={3} label="Loading recent payments" />
           ) : recentPayments.length === 0 ? (
             <div className="empty-state">
               No completed gateway payments yet.

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
+import Skeleton from '../../components/Skeleton'
 
 const formatDate = (value) => new Date(value).toLocaleDateString(undefined, {
   day: '2-digit',
@@ -130,7 +131,7 @@ export default function AdminTeam() {
             </div>
 
             {loading ? (
-              <div className="empty-state">Loading administrators...</div>
+              <Skeleton variant="rows" count={3} label="Loading administrators" />
             ) : admins.length === 0 ? (
               <div className="empty-state">No admin accounts found.</div>
             ) : (

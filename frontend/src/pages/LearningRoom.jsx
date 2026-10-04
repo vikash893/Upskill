@@ -3,8 +3,9 @@ import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import { mediaUrl } from '../utils/mediaUrl'
-import LiveClassModal from '../components/LiveClassModal'
 import AttendanceModal from '../components/AttendanceModal'
+import Skeleton from '../components/Skeleton'
+import { generateAndOpenLiveClass, openLiveClassWithAttendance } from '../utils/openLiveClass'
 
 export default function LearningRoom() {
   const { courseId } = useParams()
@@ -49,7 +50,6 @@ export default function LearningRoom() {
   const [liveClasses, setLiveClasses] = useState([])
   const [showCreateLive, setShowCreateLive] = useState(false)
   const [liveForm, setLiveForm] = useState({ title: '', topic: '', scheduled_time: '' })
-  const [activeLiveModal, setActiveLiveModal] = useState(null)
   const [activeAttendanceClassId, setActiveAttendanceClassId] = useState(null)
   const [activeRecordingModal, setActiveRecordingModal] = useState(null) // class object to edit recording
   const [recordingSourceType, setRecordingSourceType] = useState('url') // 'url' or 'file'
@@ -75,6 +75,43 @@ export default function LearningRoom() {
     if (!url) return ''
     if (url.startsWith('http://') || url.startsWith('https://')) return url
     return `http://localhost:8000/${url.replace(/^\/+/, '')}`
+  }
+
+  const handleOpenLiveClass = (liveClass) => {
+    if (session?.role === 'STUDENT') {
+      if (liveClass.status !== 'live') {
+        alert('Attendance check-in is available after the instructor starts the class.')
+        return
+      }
+
+      openLiveClassWithAttendance(liveClass.class_id, session.token)
+        .catch((err) => alert(err.message || 'Unable to join the live class right now.'))
+      return
+    }
+
+    const openMeeting = (meetingUrl) => {
+      if (!meetingUrl) {
+        alert('This class does not have a live session URL yet. Please generate it first.')
+        return
+      }
+
+      window.open(meetingUrl, '_blank', 'noopener,noreferrer')
+    }
+
+    const meetingUrl = liveClass?.meeting_url || liveClass?.join_url
+    if (meetingUrl) {
+      openMeeting(meetingUrl)
+      return
+    }
+
+    if (session?.role !== 'TEACHER' && session?.role !== 'ADMIN') {
+      alert('This class has not published a Google Meet link yet. Please ask the instructor to start the session first.')
+      return
+    }
+
+    generateAndOpenLiveClass(liveClass.class_id, session?.token)
+      .then(fetchData)
+      .catch((err) => alert(err.message || 'Unable to generate the live session right now.'))
   }
 
   // Fetch course details & data
@@ -188,6 +225,47 @@ export default function LearningRoom() {
   useEffect(() => {
     fetchData()
   }, [courseId])
+
+  useEffect(() => {
+    if (!isTeacherOrAdmin) return undefined
+    const activeMeetClasses = liveClasses.filter((cls) =>
+      cls.status === 'live' && cls.meeting_provider === 'google-meet' && cls.meeting_url && !cls.meet_sync_unsupported
+    )
+    if (!activeMeetClasses.length) return undefined
+
+    let checking = false
+    const syncMeetStatus = async () => {
+      if (checking) return
+      checking = true
+      try {
+        const results = await Promise.all(activeMeetClasses.map(async (cls) => {
+          const result = await request(`/live-class/${cls.class_id}/meet-status`, {
+            headers: { Authorization: `Bearer ${session?.token}` },
+          })
+          return { classId: cls.class_id, state: result.state, liveClass: result.liveClass }
+        }))
+        const updates = new Map()
+        for (const result of results) {
+          if (result.state === 'ended' && result.liveClass) updates.set(result.classId, result.liveClass)
+          if (result.state === 'unsupported') updates.set(result.classId, { meet_sync_unsupported: true })
+        }
+        if (updates.size) {
+          setLiveClasses((current) => current.map((cls) => {
+            const update = updates.get(cls.class_id)
+            return update ? { ...cls, ...update } : cls
+          }))
+        }
+      } catch {
+        // Retry on the next poll if Google Meet is temporarily unavailable.
+      } finally {
+        checking = false
+      }
+    }
+
+    syncMeetStatus()
+    const interval = window.setInterval(syncMeetStatus, 15000)
+    return () => window.clearInterval(interval)
+  }, [isTeacherOrAdmin, liveClasses, session?.token])
 
   // ADD LECTURE
   const handleAddLecture = async (e) => {
@@ -342,12 +420,12 @@ export default function LearningRoom() {
   }
 
   // TOGGLE LIVE CLASS STATUS
-  const handleUpdateLiveStatus = async (classId, nextStatus) => {
+  const handleUpdateLiveStatus = async (classId, nextStatus, confirmMeetEnded = false) => {
     try {
       await request(`/live-class/status/${classId}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${session.token}` },
-        body: JSON.stringify({ status: nextStatus }),
+        body: JSON.stringify({ status: nextStatus, confirm_meet_ended: confirmMeetEnded }),
       })
       fetchData()
     } catch (err) {
@@ -422,7 +500,7 @@ export default function LearningRoom() {
     }
   }
 
-  if (loading) return <main><div className="empty-state" style={{ margin: '80px auto', maxWidth: '500px' }}>Loading course learning room...</div></main>
+  if (loading) return <main><Skeleton variant="learning-room" label="Loading course classroom" /></main>
   if (error) return <main><div className="empty-state" style={{ margin: '80px auto', maxWidth: '500px' }}>{error} <br/><Link to="/dashboard" className="text-button" style={{ marginTop: '10px', display: 'inline-block' }}>Back to Dashboard</Link></div></main>
 
   return (
@@ -483,7 +561,7 @@ export default function LearningRoom() {
               </div>
               {isTeacherOrAdmin && (
                 <button className="primary-button" onClick={() => setShowAddLecture(!showAddLecture)}>
-                  {showAddLecture ? 'Cancel' : '+ Add Lecture'}
+                  {showAddLecture ? 'Cancel' : '+ Add Recorded / Network Lecture'}
                 </button>
               )}
             </div>
@@ -491,8 +569,8 @@ export default function LearningRoom() {
             {/* Teacher Add Lecture Form */}
             {showAddLecture && (
               <form onSubmit={handleAddLecture} style={{ padding: '25px', border: '1px solid var(--line)', background: '#FFFFFF', marginBottom: '30px', display: 'grid', gap: '14px' }}>
-                <p className="eyebrow">NEW LECTURE</p>
-                
+                <p className="eyebrow">NEW RECORDED / NETWORK LECTURE</p>
+
                 <div className="learning-room-grid" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '15px' }}>
                   <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)' }}>
                     Lecture Title *
@@ -506,21 +584,21 @@ export default function LearningRoom() {
 
                 {/* Video Source Selection: Local File Upload vs Network URL */}
                 <div style={{ padding: '14px', background: 'white', border: '1px solid var(--line)', display: 'grid', gap: '10px' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>VIDEO SOURCE:</span>
-                  <div style={{ display: 'flex', gap: '20px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>RECORDED / NETWORK LECTURE SOURCE:</span>
+                  <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer' }}>
                       <input type="radio" name="vidSource" checked={videoSourceType === 'url'} onChange={() => setVideoSourceType('url')} />
-                      Network Video URL (YouTube, Vimeo, or Web MP4)
+                      YouTube, Vimeo, or any direct video URL
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer' }}>
                       <input type="radio" name="vidSource" checked={videoSourceType === 'file'} onChange={() => setVideoSourceType('file')} />
-                      Upload Local Video File (MP4, WebM)
+                      Upload local MP4 / WebM recording
                     </label>
                   </div>
 
                   {videoSourceType === 'url' ? (
                     <input
-                      placeholder="https://www.youtube.com/watch?v=... or https://example.com/video.mp4"
+                      placeholder="https://www.youtube.com/watch?v=... or any public/private video source"
                       value={lectureForm.video_url}
                       onChange={(e) => setLectureForm({ ...lectureForm, video_url: e.target.value })}
                       style={{ padding: '10px', border: '1px solid var(--line)', width: '100%' }}
@@ -870,7 +948,7 @@ export default function LearningRoom() {
         )}
 
         {/* ========================================================= */}
-        {/* TAB 3: LIVE CLASSES STUDIO (JITSI MEET) & RECORDINGS */}
+        {/* TAB 3: LIVE CLASSES STUDIO & RECORDINGS */}
         {/* ========================================================= */}
         {activeTab === 'live' && (
           <div>
@@ -1000,6 +1078,11 @@ export default function LearningRoom() {
                         <p style={{ font: '11px var(--mono)', color: 'var(--muted)', margin: 0 }}>
                           Scheduled: {new Date(cls.scheduled_time).toLocaleString()} · Instructor: {cls.teacher_name}
                         </p>
+                        {cls.meet_sync_unsupported && (
+                          <p style={{ color: '#9a3412', fontSize: '11px', margin: '6px 0 0' }}>
+                            End this older Meet in Google Meet, then confirm the LMS class end here.
+                          </p>
+                        )}
                       </div>
 
                       {/* Action Buttons */}
@@ -1070,9 +1153,9 @@ export default function LearningRoom() {
                           <button
                             className="outline-button"
                             style={{ borderColor: '#c0392b', color: '#c0392b', padding: '8px 14px', fontSize: '11px' }}
-                            onClick={() => handleUpdateLiveStatus(cls.class_id, 'ended')}
+                            onClick={() => handleUpdateLiveStatus(cls.class_id, 'ended', Boolean(cls.meet_sync_unsupported))}
                           >
-                            End Class ✕
+                            {cls.meet_sync_unsupported ? 'Confirm Meet ended' : cls.meeting_provider === 'google-meet' ? 'End Meet for everyone ✕' : 'End Class ✕'}
                           </button>
                         )}
 
@@ -1081,9 +1164,9 @@ export default function LearningRoom() {
                           <button
                             className="primary-button"
                             style={{ background: isLiveNow ? 'var(--orange)' : 'var(--ink)', padding: '10px 20px', fontSize: '12px' }}
-                            onClick={() => setActiveLiveModal(cls)}
+                            onClick={() => handleOpenLiveClass(cls)}
                           >
-                            {isTeacherOrAdmin ? 'Enter Live Room ↗' : 'Join Live Class ↗'}
+                            {cls.meeting_url || cls.join_url ? 'Open Google Meet ↗' : 'Open Class ↗'}
                           </button>
                         )}
 
@@ -1378,11 +1461,6 @@ export default function LearningRoom() {
             </form>
           </div>
         </div>
-      )}
-
-      {/* Jitsi Live Class Modal */}
-      {activeLiveModal && (
-        <LiveClassModal liveClass={activeLiveModal} onClose={() => setActiveLiveModal(null)} onRecordingToggle={() => fetchData()} />
       )}
 
       {/* Attendance Modal */}

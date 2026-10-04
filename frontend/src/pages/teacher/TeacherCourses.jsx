@@ -4,6 +4,7 @@ import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
 import CourseStudentsModal from '../../components/CourseStudentsModal'
 import { mediaUrl } from '../../utils/mediaUrl'
+import Skeleton from '../../components/Skeleton'
 
 export default function TeacherCourses() {
   const { session } = useAuth()
@@ -37,7 +38,7 @@ export default function TeacherCourses() {
       </div>
 
       {loading ? (
-        <div className="empty-state">Loading assigned courses...</div>
+        <Skeleton variant="course-cards" count={3} label="Loading assigned courses" />
       ) : courses.length === 0 ? (
         <div className="empty-state">No courses are currently assigned to your teacher account.</div>
       ) : (

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
+import Skeleton from '../../components/Skeleton'
 
 export default function StudentAssignments() {
   const { session } = useAuth()
@@ -113,7 +114,7 @@ export default function StudentAssignments() {
       {actionMessage && <p className="form-message" style={{ marginBottom: '20px' }}>{actionMessage}</p>}
 
       {loading ? (
-        <div className="empty-state">Loading your assignments...</div>
+        <Skeleton variant="class-list" count={3} label="Loading your assignments" />
       ) : filtered.length === 0 ? (
         <div className="empty-state">No assignments found for this filter.</div>
       ) : (

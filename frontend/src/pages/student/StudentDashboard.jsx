@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
-import LiveClassModal from '../../components/LiveClassModal'
+import { openLiveClassWithAttendance } from '../../utils/openLiveClass'
+import Skeleton from '../../components/Skeleton'
 
 export default function StudentDashboard() {
   const { session } = useAuth()
@@ -12,8 +13,20 @@ export default function StudentDashboard() {
   const [courseStats, setCourseStats] = useState([])
   const [assignmentNotifications, setAssignmentNotifications] = useState([])
   const [upcomingLiveClass, setUpcomingLiveClass] = useState(null)
-  const [activeLiveModal, setActiveLiveModal] = useState(null)
   const [loading, setLoading] = useState(true)
+
+  const handleOpenLiveClass = async (liveClass) => {
+    if (liveClass.status !== 'live') {
+      navigate(`/learning/${liveClass.course_id}?tab=live`)
+      return
+    }
+
+    try {
+      await openLiveClassWithAttendance(liveClass.class_id, session.token)
+    } catch (err) {
+      alert(err.message || 'Unable to join the live class right now.')
+    }
+  }
 
   const fetchDashboardMetrics = async () => {
     setLoading(true)
@@ -225,9 +238,9 @@ export default function StudentDashboard() {
               padding: '10px 22px',
               fontSize: '12px',
             }}
-            onClick={() => setActiveLiveModal(upcomingLiveClass)}
+            onClick={() => handleOpenLiveClass(upcomingLiveClass)}
           >
-            {upcomingLiveClass.status === 'live' ? 'Join Live Room ↗' : 'View Class Info ↗'}
+            {upcomingLiveClass.status === 'live' ? 'Join Google Meet ↗' : 'View Class Info ↗'}
           </button>
         </div>
       )}
@@ -247,7 +260,7 @@ export default function StudentDashboard() {
           </div>
 
           {loading ? (
-            <div className="empty-state">Loading your progress meters...</div>
+            <Skeleton variant="dashboard" count={2} label="Loading course progress" />
           ) : courseStats.length === 0 ? (
             <div className="empty-state">
               You are not enrolled in any courses yet.
@@ -290,11 +303,11 @@ export default function StudentDashboard() {
                       Live Attendance: <strong>{st.attended_live} / {st.live_count || 1}</strong>
                     </span>
                     <button
-                      className="primary-button"
+                      className="outline-button"
                       style={{ fontSize: '11px', padding: '7px 14px' }}
-                      onClick={() => navigate(`/learning/${st.course_id}`)}
+                      onClick={() => navigate(`/courses/${st.course_id}`)}
                     >
-                      Open Classroom ↗
+                      View Course ↗
                     </button>
                   </div>
                 </div>
@@ -343,7 +356,7 @@ export default function StudentDashboard() {
                   <button
                     className="text-button"
                     style={{ fontSize: '11px' }}
-                    onClick={() => navigate(`/learning/${notif.course_id}`)}
+                    onClick={() => navigate(`/courses/${notif.course_id}`)}
                   >
                     {notif.type === 'pending' ? 'Submit task now ↗' : 'View graded submission ↗'}
                   </button>
@@ -354,10 +367,6 @@ export default function StudentDashboard() {
         </div>
       </div>
 
-      {/* Live Class Modal */}
-      {activeLiveModal && (
-        <LiveClassModal liveClass={activeLiveModal} onClose={() => setActiveLiveModal(null)} />
-      )}
     </div>
   )
 }

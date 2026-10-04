@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import { mediaUrl } from '../utils/mediaUrl'
+import Skeleton from '../components/Skeleton'
 
 export default function AdminUsers() {
   const { session } = useAuth()
@@ -65,7 +66,7 @@ export default function AdminUsers() {
         />
 
         {loading ? (
-          <div className="empty-state">Loading users...</div>
+          <Skeleton variant="table" count={5} label="Loading users" />
         ) : filtered.length === 0 ? (
           <div className="empty-state">{search ? 'No users match your search.' : 'No users registered yet.'}</div>
         ) : (

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import { mediaUrl } from '../utils/mediaUrl'
+import Skeleton from './Skeleton'
 
 export default function CourseStudentsModal({ course, onClose }) {
   const { session } = useAuth()
@@ -52,7 +53,7 @@ export default function CourseStudentsModal({ course, onClose }) {
         {message && <p className="form-message" style={{ marginBottom: '15px' }}>{message}</p>}
 
         {loading ? (
-          <div className="empty-state">Loading enrolled students...</div>
+          <Skeleton variant="rows" count={5} label="Loading enrolled students" />
         ) : error ? (
           <div className="empty-state">{error}</div>
         ) : students.length === 0 ? (

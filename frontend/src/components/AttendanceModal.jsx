@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { request } from '../api/request'
+import { API_URL, request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
+import Skeleton from './Skeleton'
 
 export default function AttendanceModal({ classId, onClose }) {
   const { session } = useAuth()
@@ -22,9 +23,10 @@ export default function AttendanceModal({ classId, onClose }) {
 
   const downloadCsv = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/live-class/export-attendance/${classId}`, {
+      const response = await fetch(`${API_URL}/live-class/export-attendance/${classId}`, {
         headers: { Authorization: `Bearer ${session.token}` },
       })
+      if (!response.ok) throw new Error('Attendance export failed')
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -50,9 +52,12 @@ export default function AttendanceModal({ classId, onClose }) {
         <p style={{ color: 'var(--muted)', fontSize: '12px', marginBottom: '20px' }}>
           Course: <strong>{data?.course_title}</strong> · Scheduled: {data?.scheduled_time ? new Date(data.scheduled_time).toLocaleString() : 'N/A'}
         </p>
+        <p style={{ color: 'var(--muted)', fontSize: '11px', margin: '-10px 0 18px' }}>
+          Presence is recorded when an enrolled learner opens Meet through UniSkill and ends when their Meet tab closes or the instructor ends class.
+        </p>
 
         {loading ? (
-          <div className="empty-state">Loading attendance records...</div>
+          <Skeleton variant="table" count={5} label="Loading attendance report" />
         ) : error ? (
           <div className="empty-state">{error}</div>
         ) : (
