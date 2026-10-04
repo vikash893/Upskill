@@ -71,8 +71,21 @@ function buildAttendancePipeline(classId, courseId, { skip, limit } = {}) {
     return pipeline;
 }
 
+const mongoose = require("mongoose");
+
+async function findTeacher(emailOrId) {
+    if (!emailOrId) return null;
+    const str = String(emailOrId).trim();
+    if (mongoose.isValidObjectId(str)) {
+        const byId = await Teacher.findById(str);
+        if (byId) return byId;
+    }
+    const escaped = str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return Teacher.findOne({ email: { $regex: `^${escaped}$`, $options: "i" } });
+}
+
 async function isTeacherAssigned(teacherEmail, course_id) {
-    const teacher = await Teacher.findOne({ email: teacherEmail });
+    const teacher = await findTeacher(teacherEmail);
     if (!teacher) return false;
     const course = await Course.findOne({ course_id });
     if (!course) return false;
@@ -209,11 +222,11 @@ liveClassRouter.post(
             }
 
             const userEmail = req.user.email;
-            if (req.user.role === "TEACHER" && liveClass.teacher_email !== userEmail) {
+            if (req.user.role === "TEACHER" && liveClass.teacher_email.toLowerCase() !== userEmail.toLowerCase()) {
                 return res.status(403).json({ error: "You are not allowed to generate a meeting for this class" });
             }
 
-            const teacherDoc = await Teacher.findOne({ email: liveClass.teacher_email || userEmail });
+            const teacherDoc = (await findTeacher(req.user.teacherId)) || (await findTeacher(liveClass.teacher_email)) || (await findTeacher(userEmail));
 
             if (!isGoogleMeetConfigured()) {
                 return res.status(400).json({
