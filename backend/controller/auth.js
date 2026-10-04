@@ -174,8 +174,7 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const googleAuth = async (req, res) => {
     try {
-        const { credential } = req.body;
-        const clientId = process.env.GOOGLE_CLIENT_ID;
+        const clientId = String(process.env.GOOGLE_CLIENT_ID || "").trim().replace(/^["']|["']$/g, "");
 
         if (!credential) {
             return res.status(400).json({ error: "A Google credential is required." });
@@ -187,16 +186,30 @@ const googleAuth = async (req, res) => {
 
         let payload;
         try {
-            const ticket = await googleClient.verifyIdToken({
+            const client = new OAuth2Client(clientId);
+            const ticket = await client.verifyIdToken({
                 idToken: credential,
                 audience: clientId
             });
             payload = ticket.getPayload();
         } catch (verificationError) {
-            return res.status(401).json({ error: "The Google credential is invalid or expired." });
+            let tokenAudience = "unknown";
+            try {
+                const decoded = jwt.decode(credential);
+                tokenAudience = decoded?.aud || "unknown";
+            } catch {}
+            console.error(`GOOGLE_ID_TOKEN_VERIFY_ERROR: ${verificationError.message} (Server expected clientId: '${clientId}', Token contained aud: '${tokenAudience}')`);
+            
+            if (tokenAudience !== "unknown" && tokenAudience !== clientId) {
+                return res.status(401).json({ 
+                    error: `Google Client ID mismatch. Frontend sent token for audience '${tokenAudience}', but backend is configured with '${clientId}'. Please sync VITE_GOOGLE_CLIENT_ID and GOOGLE_CLIENT_ID.` 
+                });
+            }
+
+            return res.status(401).json({ error: "The Google credential is invalid or expired. Please try signing in again." });
         }
 
-        if (!payload?.email || !payload.email_verified) {
+        if (!payload?.email || (!payload.email_verified && payload.email_verified !== "true")) {
             return res.status(401).json({ error: "Google must verify the account email." });
         }
 
@@ -238,7 +251,7 @@ const googleAuth = async (req, res) => {
                 role: "STUDENT",
                 photo: user.photo
             },
-            process.env.JWT_SECRET,
+            process.env.JWT_SECRET || "uniskill_2026_secret",
             { expiresIn: "7d" }
         );
 
