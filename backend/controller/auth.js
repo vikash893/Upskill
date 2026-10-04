@@ -174,6 +174,7 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const googleAuth = async (req, res) => {
     try {
+        const { credential } = req.body || {};
         const clientId = String(process.env.GOOGLE_CLIENT_ID || "").trim().replace(/^["']|["']$/g, "");
 
         if (!credential) {
