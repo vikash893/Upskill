@@ -46,6 +46,22 @@ const paymentSchema = new mongoose.Schema(
             type: Number,
             default: 0
         },
+        course_discount_amount: {
+            type: Number,
+            default: 0
+        },
+        coupon_discount_amount: {
+            type: Number,
+            default: 0
+        },
+        bulk_discount_applied: {
+            type: Number,
+            default: 0
+        },
+        bulk_discount_amount: {
+            type: Number,
+            default: 0
+        },
         final_amount: {
             type: Number,
             required: true
@@ -71,6 +87,10 @@ const paymentSchema = new mongoose.Schema(
             type: String,
             default: null,
             index: true
+        },
+        order_course_id: {
+            type: String,
+            default: null
         },
         razorpay_payment_id: {
             type: String,
@@ -118,6 +138,10 @@ const paymentSchema = new mongoose.Schema(
 );
 
 paymentSchema.index({ student_email: 1, course_id: 1 });
+paymentSchema.index(
+    { razorpay_order_id: 1, order_course_id: 1 },
+    { unique: true, partialFilterExpression: { order_course_id: { $type: "string" } } }
+);
 paymentSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("Payment", paymentSchema);

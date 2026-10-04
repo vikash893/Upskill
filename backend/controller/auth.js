@@ -4,6 +4,7 @@ const Teacher = require("../models/teacher");
 const Admin = require("../models/admin");
 const jwt = require("jsonwebtoken");
 const { persistFile } = require("../config/cloudinary");
+const { google, createGoogleOAuthClient, getGoogleOAuthConfig } = require("../config/google");
 
 const emailFilterFor = (email) => {
     const escapedEmail = email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -136,7 +137,7 @@ const userlogin = async (req, res) => {
 
         const token = jwt.sign(
             tokenPayload,
-            process.env.JWT_SECRET || "uniskill_2026_secret",
+            process.env.JWT_SECRET,
             { expiresIn: "7d" }
         );
 
@@ -266,6 +267,184 @@ const googleAuth = async (req, res) => {
     }
 };
 
+const getLmsRedirectBase = () => {
+    const configuredUrl = String(process.env.FRONTEND_URL || process.env.CLIENT_URL || "http://localhost:5173").trim();
+    return configuredUrl.replace(/\/$/, "");
+};
+
+const googleMeetAuthStart = async (req, res) => {
+    try {
+        if (!req.user || !req.user.teacherId) {
+            return res.status(403).json({ error: "Teacher authentication required." });
+        }
+
+        if (!getGoogleOAuthConfig() || !process.env.JWT_SECRET) {
+            return res.status(503).json({ error: "Google Meet authorization is not configured." });
+        }
+
+        const oauth2Client = createGoogleOAuthClient();
+
+        const teacher = await Teacher.findById(req.user.teacherId);
+        if (!teacher) {
+            return res.status(404).json({ error: "Teacher account not found." });
+        }
+
+        const state = jwt.sign(
+            {
+                teacherId: teacher._id.toString(),
+                role: "TEACHER",
+                purpose: "google-meet-oauth"
+            },
+            process.env.JWT_SECRET || "uniskill_2026_secret",
+            { expiresIn: "10m" }
+        );
+
+        const authUrl = oauth2Client.generateAuthUrl({
+            access_type: "offline",
+            prompt: "consent",
+            scope: [
+                "https://www.googleapis.com/auth/calendar.events",
+                "https://www.googleapis.com/auth/meetings.space.created",
+                "openid",
+                "email"
+            ],
+            state
+        });
+
+        return res.status(200).json({
+            message: "Google Meet authorization started.",
+            authUrl
+        });
+    } catch (error) {
+        console.error("GOOGLE_MEET_AUTH_START_ERROR", error.message);
+        return res.status(500).json({ error: "Unable to start Google Meet authorization." });
+    }
+};
+
+const googleMeetAuthCallback = async (req, res) => {
+    try {
+        const { code, state, error: oauthError } = req.query;
+
+        if (oauthError) {
+            return res.redirect(`${getLmsRedirectBase()}/teacher/live-studio?googleMeet=denied`);
+        }
+
+        if (!code || !state || !process.env.JWT_SECRET || !getGoogleOAuthConfig()) {
+            return res.status(400).json({ error: "Google Meet authorization was incomplete." });
+        }
+
+        const oauth2Client = createGoogleOAuthClient();
+
+        let decodedState;
+        try {
+            decodedState = jwt.verify(
+                String(state),
+                process.env.JWT_SECRET
+            );
+        } catch (error) {
+            return res.status(400).json({ error: "Google Meet authorization state is invalid or expired." });
+        }
+
+        if (decodedState.purpose !== "google-meet-oauth" || decodedState.role !== "TEACHER") {
+            return res.status(400).json({ error: "Invalid Google Meet authorization request." });
+        }
+
+        const teacher = await Teacher.findById(decodedState.teacherId);
+        if (!teacher) {
+            return res.status(404).json({ error: "Teacher account not found." });
+        }
+
+        const { tokens } = await oauth2Client.getToken(String(code));
+        if (!tokens) {
+            return res.redirect(`${getLmsRedirectBase()}/teacher/live-studio?googleMeet=missing-refresh-token`);
+        }
+
+        oauth2Client.setCredentials(tokens);
+        const grantedScopes = new Set(String(tokens.scope || "").split(/\s+/));
+        const requiredScopes = [
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "email"
+        ];
+        if (requiredScopes.some(scope => !grantedScopes.has(scope))) {
+            return res.redirect(`${getLmsRedirectBase()}/teacher/live-studio?googleMeet=missing-scopes`);
+        }
+
+        const profile = await google.oauth2({ version: "v2", auth: oauth2Client }).userinfo.get();
+        if (!profile.data?.email || profile.data.verified_email !== true) {
+            return res.redirect(`${getLmsRedirectBase()}/teacher/live-studio?googleMeet=unverified-account`);
+        }
+
+        const verifiedGoogleEmail = profile.data.email.toLowerCase();
+        const refreshToken = tokens.refresh_token || (
+            teacher.google_account_email === verifiedGoogleEmail ? teacher.google_refresh_token : null
+        );
+        if (!refreshToken) {
+            return res.redirect(`${getLmsRedirectBase()}/teacher/live-studio?googleMeet=missing-refresh-token`);
+        }
+
+        teacher.google_refresh_token = refreshToken;
+        teacher.google_access_token = tokens.access_token || teacher.google_access_token || null;
+        teacher.google_token_scope = tokens.scope || teacher.google_token_scope || null;
+        teacher.google_token_expiry_date = tokens.expiry_date ? new Date(tokens.expiry_date) : teacher.google_token_expiry_date || null;
+        teacher.google_account_email = verifiedGoogleEmail;
+        teacher.google_meet_connected_at = new Date();
+        await teacher.save();
+
+        return res.redirect(`${getLmsRedirectBase()}/teacher/live-studio?googleMeet=connected`);
+    } catch (error) {
+        console.error("GOOGLE_MEET_AUTH_CALLBACK_ERROR", error.message);
+        return res.redirect(`${getLmsRedirectBase()}/teacher/live-studio?googleMeet=error`);
+    }
+};
+
+const googleMeetAuthStatus = async (req, res) => {
+    try {
+        if (!req.user?.teacherId) {
+            return res.status(403).json({ error: "Teacher authentication required." });
+        }
+
+        const teacher = await Teacher.findById(req.user.teacherId)
+            .select("google_refresh_token google_account_email google_meet_connected_at google_access_token google_token_expiry_date");
+        if (!teacher) return res.status(404).json({ error: "Teacher account not found." });
+
+        if (!teacher.google_refresh_token) {
+            return res.status(200).json({ connected: false, account_email: null, connected_at: null });
+        }
+
+        const oauth2Client = createGoogleOAuthClient();
+        if (!oauth2Client) {
+            return res.status(200).json({ connected: false, reconnect_required: true, account_email: null });
+        }
+
+        oauth2Client.setCredentials({ refresh_token: teacher.google_refresh_token });
+        const profile = await google.oauth2({ version: "v2", auth: oauth2Client }).userinfo.get();
+        if (!profile.data?.email || profile.data.verified_email !== true) {
+            return res.status(200).json({ connected: false, reconnect_required: true, account_email: null });
+        }
+
+        teacher.google_account_email = profile.data.email.toLowerCase();
+        teacher.google_access_token = oauth2Client.credentials.access_token || teacher.google_access_token;
+        teacher.google_token_expiry_date = oauth2Client.credentials.expiry_date
+            ? new Date(oauth2Client.credentials.expiry_date)
+            : teacher.google_token_expiry_date;
+        await teacher.save();
+
+        return res.status(200).json({
+            connected: true,
+            account_email: teacher.google_account_email,
+            connected_at: teacher.google_meet_connected_at || null
+        });
+    } catch (error) {
+        const errorCode = error?.response?.data?.error;
+        if (errorCode === "invalid_grant" || error?.code === 401) {
+            return res.status(200).json({ connected: false, reconnect_required: true, account_email: null });
+        }
+        console.error("GOOGLE_MEET_AUTH_STATUS_ERROR", error.message);
+        return res.status(503).json({ error: "Unable to verify the Google account right now." });
+    }
+};
+
 const changePassword = async (req, res) => {
     try {
         const { old_password, current_password, new_password, confirm_password } = req.body;
@@ -332,4 +511,12 @@ const changePassword = async (req, res) => {
     }
 };
 
-module.exports = { userRegister, userlogin, googleAuth, changePassword };
+module.exports = {
+    userRegister,
+    userlogin,
+    googleAuth,
+    googleMeetAuthStart,
+    googleMeetAuthCallback,
+    googleMeetAuthStatus,
+    changePassword
+};

@@ -7,6 +7,7 @@ const liveAttendanceSchema = new mongoose.Schema({
     entered_at: { type: Date, required: true },
     left_at: { type: Date, default: null },
     duration_minutes: { type: Number, default: 0 },
+    source: { type: String, enum: ["lms_meet_launch"], default: "lms_meet_launch" },
     status: { type: String, enum: ["present", "absent"], default: "present" }
 }, { timestamps: true });
 

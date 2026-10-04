@@ -1,6 +1,14 @@
 const express = require("express");
 const upload = require("../config/multer");
-const { userRegister, userlogin, googleAuth, changePassword } = require("../controller/auth");
+const {
+    userRegister,
+    userlogin,
+    googleAuth,
+    googleMeetAuthStart,
+    googleMeetAuthCallback,
+    googleMeetAuthStatus,
+    changePassword
+} = require("../controller/auth");
 const { authRateLimit } = require("../middleware/rateLimit");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -23,6 +31,24 @@ authRouter.post(
     "/google",
     authRateLimit,
     googleAuth
+);
+
+authRouter.get(
+    "/google/meet",
+    authRateLimit,
+    authMiddleware,
+    googleMeetAuthStart
+);
+
+authRouter.get(
+    "/google/meet/status",
+    authMiddleware,
+    googleMeetAuthStatus
+);
+
+authRouter.get(
+    "/google/meet/callback",
+    googleMeetAuthCallback
 );
 
 authRouter.post(

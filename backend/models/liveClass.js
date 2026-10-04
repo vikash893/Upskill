@@ -70,6 +70,33 @@ const liveClassSchema = new mongoose.Schema(
             type: String,
             required: true
         },
+        stream_provider: {
+            type: String,
+            enum: ["uniskill-webrtc", "google-meet"],
+            default: "uniskill-webrtc"
+        },
+        meeting_provider: {
+            type: String,
+            enum: ["legacy-webrtc", "google-meet"],
+            default: "legacy-webrtc"
+        },
+        meeting_url: {
+            type: String,
+            default: null
+        },
+        calendar_event_id: {
+            type: String,
+            default: null
+        },
+        meet_space_id: {
+            type: String,
+            default: null
+        },
+        recording_status: {
+            type: String,
+            enum: ["not_started", "in_progress", "completed", "unavailable", "error"],
+            default: "not_started"
+        },
         scheduled_time: {
             type: Date,
             default: Date.now

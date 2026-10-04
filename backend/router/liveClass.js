@@ -17,8 +17,16 @@ const {
     getStudentDisplayName,
     invalidateLiveClassSnapshot,
     joinLiveClass,
-    leaveLiveClass
+    leaveLiveClass,
+    endLiveClassAttendance
 } = require("../services/liveAttendance");
+const {
+    createGoogleMeetEvent,
+    endGoogleMeetConference,
+    getGoogleMeetConferenceStatus,
+    isGoogleMeetConfigured,
+    syncGoogleMeetRecordingMetadata
+} = require("../services/googleMeetService");
 
 const liveClassRouter = express.Router();
 
@@ -52,7 +60,8 @@ function buildAttendancePipeline(classId, courseId, { skip, limit } = {}) {
                 status: { $cond: [{ $ifNull: ["$attendance_record._id", false] }, "Present", "Absent"] },
                 entered_at: "$attendance_record.entered_at",
                 left_at: "$attendance_record.left_at",
-                duration_minutes: { $ifNull: ["$attendance_record.duration_minutes", 0] }
+                duration_minutes: { $ifNull: ["$attendance_record.duration_minutes", 0] },
+                source: "$attendance_record.source"
             }
         }
     ];
@@ -75,8 +84,16 @@ async function isTeacherAssigned(teacherEmail, course_id) {
     );
 }
 
+async function markLiveClassEnded(liveClass, endedAt = new Date()) {
+    liveClass.status = "ended";
+    liveClass.ended_at = endedAt;
+    await liveClass.save();
+    await invalidateLiveClassSnapshot(liveClass.class_id);
+    await endLiveClassAttendance(liveClass.class_id, endedAt);
+}
+
 // ======================================================
-// CREATE LIVE CLASS (JITSI MEET)
+// CREATE LIVE CLASS (UNISKILL WEBRTC STREAM)
 // ======================================================
 liveClassRouter.post(
     "/live-class/create",
@@ -86,7 +103,7 @@ liveClassRouter.post(
         try {
             const userEmail = req.user.email;
             const userRole = req.user.role;
-            const { course_id, title, topic, scheduled_time } = req.body;
+            const { course_id, title, topic, scheduled_time, duration_minutes } = req.body;
 
             if (!course_id || !title) {
                 return res.status(400).json({ error: "Course ID and class title are required" });
@@ -108,10 +125,38 @@ liveClassRouter.post(
             const teacherName = teacherDoc?.name || req.user.name || "Course Instructor";
 
             const class_id = `cls_${crypto.randomUUID ? crypto.randomUUID().substring(0, 10) : Date.now().toString(36)}`;
-            // Create safe Jitsi room name (e.g. UniSkill_CourseName_RandomHex)
             const safeCoursePart = course.course_title.replace(/[^a-zA-Z0-9]/g, "").substring(0, 12);
             const randomPart = crypto.randomUUID ? crypto.randomUUID().substring(0, 8) : Math.random().toString(36).substring(2, 8);
             const room_name = `UniSkill_${safeCoursePart}_${randomPart}`;
+            const scheduledAt = scheduled_time ? new Date(scheduled_time) : new Date();
+            const durationMinutes = Number(duration_minutes) > 0 ? Number(duration_minutes) : 60;
+            const startDateTime = scheduledAt instanceof Date && !Number.isNaN(scheduledAt) ? scheduledAt : new Date();
+            const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000);
+
+            const googleMeetEnabled = isGoogleMeetConfigured();
+            let meetingResult = { created: false, configured: false, connected: false, meetUrl: null, eventId: null, meetSpaceId: null };
+
+            if (googleMeetEnabled && teacherDoc?.google_refresh_token) {
+                meetingResult = await createGoogleMeetEvent({
+                    title,
+                    description: topic || "Course live class",
+                    startTime: startDateTime,
+                    endTime: endDateTime,
+                    courseTitle: course.course_title,
+                    teacherName,
+                    attendeeEmails: []
+                }, teacherDoc);
+            } else if (googleMeetEnabled) {
+                meetingResult = {
+                    created: false,
+                    configured: true,
+                    connected: false,
+                    meetUrl: null,
+                    eventId: null,
+                    meetSpaceId: null,
+                    message: "Google Meet is configured, but this teacher has not connected their Google account yet."
+                };
+            }
 
             const newClass = new LiveClass({
                 class_id,
@@ -122,7 +167,12 @@ liveClassRouter.post(
                 title,
                 topic: topic || "",
                 room_name,
-                scheduled_time: scheduled_time ? new Date(scheduled_time) : new Date(),
+                stream_provider: meetingResult.created ? "google-meet" : "uniskill-webrtc",
+                meeting_provider: meetingResult.created ? "google-meet" : "legacy-webrtc",
+                meeting_url: meetingResult.meetUrl || null,
+                calendar_event_id: meetingResult.eventId || null,
+                meet_space_id: meetingResult.meetSpaceId || null,
+                scheduled_time: startDateTime,
                 status: "upcoming",
                 attendance: []
             });
@@ -130,8 +180,13 @@ liveClassRouter.post(
             await newClass.save();
 
             return res.status(201).json({
-                message: "Live class created successfully",
-                liveClass: newClass
+                message: meetingResult.created
+                    ? "Live class created successfully with Google Meet"
+                    : googleMeetEnabled
+                        ? "Live class created but Google Meet scheduling is still pending. Please verify your Google Workspace config."
+                        : "Live class created successfully. Configure Google Meet credentials to generate a Meet link.",
+                liveClass: newClass,
+                meet: meetingResult
             });
         } catch (error) {
             console.log("CREATE LIVE CLASS ERROR:", error);
@@ -140,9 +195,131 @@ liveClassRouter.post(
     }
 );
 
+liveClassRouter.post(
+    "/live-class/:class_id/generate-meeting",
+    authMiddleware,
+    requireRole("TEACHER", "ADMIN"),
+    async (req, res) => {
+        try {
+            const { class_id } = req.params;
+            const liveClass = await LiveClass.findOne({ class_id });
+
+            if (!liveClass) {
+                return res.status(404).json({ error: "Live class not found" });
+            }
+
+            const userEmail = req.user.email;
+            if (req.user.role === "TEACHER" && liveClass.teacher_email !== userEmail) {
+                return res.status(403).json({ error: "You are not allowed to generate a meeting for this class" });
+            }
+
+            const teacherDoc = await Teacher.findOne({ email: liveClass.teacher_email || userEmail });
+
+            if (!isGoogleMeetConfigured()) {
+                return res.status(400).json({
+                    error: "Google Meet is not configured for this LMS yet. Add your Google OAuth or service account settings first.",
+                    configured: false,
+                });
+            }
+
+            if (!teacherDoc?.google_refresh_token) {
+                return res.status(409).json({
+                    error: "The instructor must connect and verify their Google account before generating this Meet session.",
+                    configured: true,
+                    connected: false,
+                });
+            }
+
+            const scheduledTime = liveClass.scheduled_time || new Date();
+            const endDateTime = new Date(scheduledTime.getTime() + (Number(liveClass.duration_minutes) || 60) * 60 * 1000);
+
+            const meetingResult = await createGoogleMeetEvent({
+                title: liveClass.title,
+                description: liveClass.topic || "Course live class",
+                startTime: scheduledTime,
+                endTime: endDateTime,
+                courseTitle: liveClass.course_title,
+                teacherName: liveClass.teacher_name,
+                attendeeEmails: []
+            }, teacherDoc);
+
+            if (!meetingResult.created) {
+                return res.status(400).json({
+                    error: meetingResult.message || "Unable to generate a Google Meet session right now.",
+                    configured: meetingResult.configured,
+                    connected: Boolean(teacherDoc?.google_refresh_token),
+                    meet: meetingResult,
+                });
+            }
+
+            liveClass.meeting_url = meetingResult.meetUrl || liveClass.meeting_url;
+            liveClass.meeting_provider = "google-meet";
+            liveClass.stream_provider = "google-meet";
+            liveClass.calendar_event_id = meetingResult.eventId || liveClass.calendar_event_id;
+            liveClass.meet_space_id = meetingResult.meetSpaceId || liveClass.meet_space_id;
+            liveClass.status = liveClass.status === "ended" ? "upcoming" : liveClass.status;
+            await liveClass.save();
+            await invalidateLiveClassSnapshot(class_id);
+
+            return res.status(200).json({
+                message: "Google Meet session generated successfully.",
+                meeting_url: liveClass.meeting_url,
+                liveClass,
+                meet: meetingResult,
+            });
+        } catch (error) {
+            console.log("GENERATE LIVE CLASS MEETING ERROR:", error);
+            return res.status(500).json({ error: "Internal server error" });
+        }
+    }
+);
+
 // ======================================================
 // GET LIVE CLASSES FOR A COURSE
 // ======================================================
+liveClassRouter.get("/live-class/google-meet/status", authMiddleware, requireRole("TEACHER", "ADMIN"), async (req, res) => {
+    return res.status(200).json({
+        enabled: isGoogleMeetConfigured(),
+        provider: isGoogleMeetConfigured() ? "google-meet" : "not-configured",
+        message: isGoogleMeetConfigured()
+            ? "Google Meet is configured for live-class scheduling."
+            : "Google Meet is not configured yet. Add the Google OAuth or service account settings to generate Meet links."
+    });
+});
+
+liveClassRouter.get("/live-class/history/:course_id", authMiddleware, async (req, res) => {
+    try {
+        const { course_id } = req.params;
+        const userEmail = req.user.email;
+        const userRole = req.user.role;
+
+        if (userRole === "STUDENT") {
+            const enrollment = await Enrollment.findOne({ student_email: userEmail, course_id, status: "active" });
+            if (!enrollment) {
+                return res.status(403).json({ error: "You must be enrolled in this course to view class history" });
+            }
+        }
+
+        const classes = await LiveClass.find({ course_id }).sort({ scheduled_time: -1 }).lean();
+        const upcoming = classes.filter((item) => item.status === "upcoming");
+        const liveNow = classes.filter((item) => item.status === "live");
+        const completed = classes.filter((item) => item.status === "ended");
+        const recordings = classes.filter((item) => item.recording_url || item.recording_status === "completed");
+
+        return res.status(200).json({
+            total: classes.length,
+            upcoming,
+            liveNow,
+            completed,
+            recordings,
+            classes
+        });
+    } catch (error) {
+        console.log("GET LIVE CLASS HISTORY ERROR:", error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+});
+
 liveClassRouter.get("/live-class/course/:course_id", authMiddleware, async (req, res) => {
     try {
         const { course_id } = req.params;
@@ -186,6 +363,88 @@ liveClassRouter.get("/live-class/course/:course_id", authMiddleware, async (req,
 // ======================================================
 // START / END LIVE CLASS
 // ======================================================
+liveClassRouter.post(
+    "/live-class/:class_id/sync-recording",
+    authMiddleware,
+    requireRole("TEACHER", "ADMIN"),
+    async (req, res) => {
+        try {
+            const { class_id } = req.params;
+            const liveClass = await LiveClass.findOne({ class_id });
+
+            if (!liveClass) {
+                return res.status(404).json({ error: "Live class not found" });
+            }
+            if (req.user.role === "TEACHER" && liveClass.teacher_email !== req.user.email) {
+                return res.status(403).json({ error: "You are not allowed to sync this class" });
+            }
+
+            const teacherDoc = await Teacher.findOne({ email: liveClass.teacher_email });
+
+            const syncResult = await syncGoogleMeetRecordingMetadata({
+                meetSpaceId: liveClass.meet_space_id,
+                calendarEventId: liveClass.calendar_event_id,
+                liveClass,
+            }, teacherDoc);
+
+            if (syncResult.recordings && syncResult.recordings.length > 0) {
+                const firstRecording = syncResult.recordings[0];
+                liveClass.recording_url = firstRecording.uri || liveClass.recording_url;
+                liveClass.recording_status = "completed";
+                liveClass.recording_duration = liveClass.recording_duration || "Recorded session";
+                await liveClass.save();
+            }
+
+            return res.status(200).json({
+                message: syncResult.message,
+                syncResult,
+                liveClass
+            });
+        } catch (error) {
+            console.log("SYNC MEET RECORDING ERROR:", error);
+            return res.status(500).json({ error: "Internal server error" });
+        }
+    }
+);
+
+liveClassRouter.get(
+    "/live-class/:class_id/meet-status",
+    authMiddleware,
+    requireRole("TEACHER", "ADMIN"),
+    async (req, res) => {
+        try {
+            const liveClass = await LiveClass.findOne({ class_id: req.params.class_id });
+            if (!liveClass) return res.status(404).json({ error: "Live class not found" });
+            if (req.user.role === "TEACHER" && liveClass.teacher_email !== req.user.email) {
+                return res.status(403).json({ error: "You are not allowed to sync this class" });
+            }
+            if (liveClass.status === "ended") {
+                return res.status(200).json({ state: "ended", liveClass });
+            }
+            if (liveClass.meeting_provider !== "google-meet" || !liveClass.meeting_url) {
+                return res.status(200).json({ state: liveClass.status, liveClass });
+            }
+
+            const teacher = await Teacher.findOne({ email: liveClass.teacher_email });
+            const conferenceState = await getGoogleMeetConferenceStatus({
+                meetSpaceId: liveClass.meet_space_id,
+                meetingUrl: liveClass.meeting_url
+            }, teacher);
+
+            if (conferenceState.state === "ended") {
+                const endedAt = conferenceState.endedAt ? new Date(conferenceState.endedAt) : new Date();
+                await markLiveClassEnded(liveClass, endedAt);
+                return res.status(200).json({ state: "ended", liveClass, conferenceState });
+            }
+
+            return res.status(200).json({ state: conferenceState.state, liveClass, conferenceState });
+        } catch (error) {
+            console.error("SYNC GOOGLE MEET STATUS ERROR:", error?.response?.data || error?.message || error);
+            return res.status(503).json({ error: "Google Meet status could not be checked; retry shortly." });
+        }
+    }
+);
+
 liveClassRouter.patch(
     "/live-class/status/:class_id",
     authMiddleware,
@@ -203,15 +462,46 @@ liveClassRouter.patch(
             if (!liveClass) {
                 return res.status(404).json({ error: "Live class not found" });
             }
+            if (req.user.role === "TEACHER" && liveClass.teacher_email !== req.user.email) {
+                return res.status(403).json({ error: "You are not allowed to update this class" });
+            }
+
+            if (status === "ended" && liveClass.status !== "ended" && liveClass.meeting_provider === "google-meet") {
+                const teacher = await Teacher.findOne({ email: liveClass.teacher_email });
+                const conferenceState = await getGoogleMeetConferenceStatus({
+                    meetSpaceId: liveClass.meet_space_id,
+                    meetingUrl: liveClass.meeting_url
+                }, teacher);
+
+                if (conferenceState.state === "active") {
+                    const endResult = await endGoogleMeetConference({
+                        meetSpaceId: liveClass.meet_space_id,
+                        meetingUrl: liveClass.meeting_url
+                    }, teacher);
+                    if (!endResult.ended) {
+                        return res.status(502).json({ error: endResult.message });
+                    }
+                } else if (conferenceState.state === "unsupported" && req.body.confirm_meet_ended !== true) {
+                    return res.status(409).json({
+                        error: "This older Meet link cannot be ended by the LMS. End it in Google Meet first, then confirm here.",
+                        confirm_meet_ended: true,
+                    });
+                } else if (conferenceState.state === "unavailable") {
+                    return res.status(503).json({ error: conferenceState.message });
+                }
+            }
 
             liveClass.status = status;
             if (status === "live" && !liveClass.started_at) {
                 liveClass.started_at = new Date();
-            } else if (status === "ended") {
-                liveClass.ended_at = new Date();
             }
 
-            await liveClass.save();
+            if (status === "ended") {
+                await markLiveClassEnded(liveClass);
+            } else {
+                await liveClass.save();
+                await invalidateLiveClassSnapshot(class_id);
+            }
 
             return res.status(200).json({
                 message: `Live class marked as ${status}`,
@@ -236,6 +526,14 @@ liveClassRouter.post("/live-class/join/:class_id", authMiddleware, liveClassRate
             return res.status(404).json({ error: "Live class not found" });
         }
 
+        if (req.user.role === "STUDENT" && liveClass.status !== "live") {
+            return res.status(409).json({ error: "Attendance is recorded only while the instructor has started this class." });
+        }
+
+        if (!liveClass.meeting_url) {
+            return res.status(409).json({ error: "The instructor has not generated a Google Meet link for this class yet." });
+        }
+
         // Check enrollment
         const enrolled = req.user.role === "ADMIN" || req.user.role === "TEACHER"
             ? true
@@ -249,9 +547,12 @@ liveClassRouter.post("/live-class/join/:class_id", authMiddleware, liveClassRate
 
         return res.status(200).json({
             message: "Joined live class successfully",
+            join_url: liveClass.meeting_url,
+            meeting_url: liveClass.meeting_url,
             room_name: liveClass.room_name,
             class_title: liveClass.title,
-            course_title: liveClass.course_title
+            course_title: liveClass.course_title,
+            meeting_provider: liveClass.meeting_provider || liveClass.stream_provider || "legacy-webrtc"
         });
     } catch (error) {
         console.log("JOIN LIVE CLASS ERROR:", error);
@@ -270,6 +571,10 @@ liveClassRouter.post("/live-class/leave/:class_id", authMiddleware, liveClassRat
         const liveClass = await getLiveClassSnapshot(class_id);
         if (!liveClass) {
             return res.status(404).json({ error: "Live class not found" });
+        }
+
+        if (req.user.role === "STUDENT" && !(await isEnrolled(req.user.email, liveClass.course_id))) {
+            return res.status(403).json({ error: "You are not enrolled in this course" });
         }
 
         await leaveLiveClass({ classId: class_id, studentEmail });
@@ -291,19 +596,26 @@ liveClassRouter.get("/live-class/attendance/:class_id", authMiddleware, requireR
         if (!liveClass) {
             return res.status(404).json({ error: "Live class not found" });
         }
+        if (req.user.role === "TEACHER" && liveClass.teacher_email !== req.user.email) {
+            return res.status(403).json({ error: "You are not allowed to view this attendance report" });
+        }
 
         // Get all enrolled students in the course
         const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
         const pageSize = Math.min(500, Math.max(1, Number.parseInt(req.query.limit, 10) || 100));
-        const [totalEnrolled, presentCount, attendance] = await Promise.all([
+        const [totalEnrolled, presentCounts, attendance] = await Promise.all([
             Enrollment.countDocuments({ course_id: liveClass.course_id, status: "active" }),
-            LiveAttendance.countDocuments({ class_id }),
+            Enrollment.aggregate([
+                ...buildAttendancePipeline(class_id, liveClass.course_id),
+                { $match: { status: "Present" } },
+                { $count: "total" }
+            ]),
             Enrollment.aggregate(buildAttendancePipeline(class_id, liveClass.course_id, {
                 skip: (page - 1) * pageSize,
                 limit: pageSize
             }))
         ]);
-        const totalPresent = Math.min(totalEnrolled, presentCount);
+        const totalPresent = presentCounts[0]?.total || 0;
         const totalAbsent = Math.max(0, totalEnrolled - totalPresent);
 
         return res.status(200).json({
@@ -338,25 +650,43 @@ liveClassRouter.get("/live-class/export-attendance/:class_id", authMiddleware, r
         if (!liveClass) {
             return res.status(404).json({ error: "Live class not found" });
         }
+        if (req.user.role === "TEACHER" && liveClass.teacher_email !== req.user.email) {
+            return res.status(403).json({ error: "You are not allowed to export this attendance report" });
+        }
 
         const allEnrolled = await Enrollment.find({ course_id: liveClass.course_id, status: "active" });
-        const presentEmails = new Set(liveClass.attendance.map(a => a.student_email.toLowerCase()));
+        const studentEmails = allEnrolled.map(enrollment => enrollment.student_email.toLowerCase());
+        const attendanceRecords = await LiveAttendance.find({
+            class_id,
+            student_email: { $in: studentEmails }
+        }).lean();
+        const attendanceByEmail = new Map(attendanceRecords.map(record => [record.student_email.toLowerCase(), record]));
+        const presentEmails = new Set(attendanceByEmail.keys());
 
-        let csv = "Student Name,Student Email,Course,Class Title,Status,Entered At,Left At,Duration (Minutes)\n";
+        const csvCell = value => {
+            const text = String(value ?? "").replace(/^[=+@\-]/, "'$&");
+            return `"${text.replace(/"/g, '""')}"`;
+        };
+        let csv = "Student Name,Student Email,Course,Class Title,Status,Entered At,Left At,Duration (Minutes),Source\n";
 
         // Present students
-        liveClass.attendance.forEach(a => {
-            const entered = a.entered_at ? new Date(a.entered_at).toLocaleString() : "N/A";
-            const left = a.left_at ? new Date(a.left_at).toLocaleString() : (liveClass.status === "live" ? "In Session" : "N/A");
-            const duration = a.duration_minutes || 0;
-            csv += `"${a.student_name}","${a.student_email}","${liveClass.course_title}","${liveClass.title}","Present","${entered}","${left}","${duration}"\n`;
-        });
-
-        // Absent students
         allEnrolled.forEach(e => {
-            if (!presentEmails.has(e.student_email.toLowerCase())) {
-                csv += `"${e.student_name}","${e.student_email}","${liveClass.course_title}","${liveClass.title}","Absent","N/A","N/A","0"\n`;
-            }
+            const email = e.student_email.toLowerCase();
+            const record = attendanceByEmail.get(email);
+            const entered = record?.entered_at ? new Date(record.entered_at).toLocaleString() : "N/A";
+            const left = record?.left_at ? new Date(record.left_at).toLocaleString() : (record && liveClass.status === "live" ? "In Session" : "N/A");
+            const values = [
+                record?.student_name || e.student_name,
+                email,
+                liveClass.course_title,
+                liveClass.title,
+                presentEmails.has(email) ? "Present" : "Absent",
+                entered,
+                left,
+                record?.duration_minutes || 0,
+                record?.source || ""
+            ];
+            csv += `${values.map(csvCell).join(",")}\n`;
         });
 
         res.setHeader("Content-Type", "text/csv");

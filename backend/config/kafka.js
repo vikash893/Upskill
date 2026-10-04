@@ -1,7 +1,6 @@
 const { Kafka, logLevel } = require("kafkajs");
 
 let kafkaProducer = null;
-let kafkaConsumer = null;
 let isKafkaReady = false;
 
 const attendanceTopic = process.env.KAFKA_LIVE_CLASS_TOPIC || "uniskill.live-class.attendance";
@@ -47,24 +46,15 @@ async function connectKafka() {
             maxInFlightRequests: 1
         });
 
-        kafkaConsumer = kafka.consumer({
-            groupId: process.env.KAFKA_GROUP_ID || "uniskill-event-processors"
-        });
-
         await kafkaProducer.connect();
-        await kafkaConsumer.connect();
-
-        // The in-process consumer currently persists live attendance events.
-        await kafkaConsumer.subscribe({ topic: attendanceTopic, fromBeginning: false });
 
         isKafkaReady = true;
-        console.log("Kafka producer and consumer connected successfully.");
-        return { producer: kafkaProducer, consumer: kafkaConsumer };
+        console.log("Kafka event producer connected successfully.");
+        return { producer: kafkaProducer };
     } catch (error) {
         console.warn("⚠️ Kafka connection failed:", error.message);
         console.log("ℹ️  System will continue with direct asynchronous event processing.");
         kafkaProducer = null;
-        kafkaConsumer = null;
         isKafkaReady = false;
         return null;
     }
@@ -72,10 +62,6 @@ async function connectKafka() {
 
 function getKafkaProducer() {
     return isKafkaReady ? kafkaProducer : null;
-}
-
-function getKafkaConsumer() {
-    return isKafkaReady ? kafkaConsumer : null;
 }
 
 function isKafkaConnected() {
@@ -116,17 +102,14 @@ async function publishKafkaEvent(topic, key, payload) {
 async function closeKafka() {
     try {
         if (kafkaProducer) await kafkaProducer.disconnect();
-        if (kafkaConsumer) await kafkaConsumer.disconnect();
     } catch {}
     kafkaProducer = null;
-    kafkaConsumer = null;
     isKafkaReady = false;
 }
 
 module.exports = {
     connectKafka,
     getKafkaProducer,
-    getKafkaConsumer,
     isKafkaConnected,
     getAttendanceTopic,
     getPaymentTopic,

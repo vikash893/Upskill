@@ -4,7 +4,7 @@ const Enrollment = require("../models/enrollment");
 const LiveAttendance = require("../models/liveAttendance");
 const User = require("../models/user");
 const { getRedisClient } = require("../config/redis");
-const { getKafkaProducer, getKafkaConsumer, getAttendanceTopic } = require("../config/kafka");
+const { getKafkaProducer, getAttendanceTopic } = require("../config/kafka");
 
 const activeStudents = new Map();
 const activeTtlSeconds = 24 * 60 * 60;
@@ -45,7 +45,7 @@ async function getLiveClassSnapshot(classId) {
     }
 
     const liveClass = await LiveClass.findOne({ class_id: classId })
-        .select("class_id course_id room_name title course_title status")
+        .select("class_id course_id room_name meeting_url title course_title status")
         .lean();
     if (liveClass && redis) await redis.set(cacheKey, JSON.stringify(liveClass), "EX", 10);
     return liveClass;
@@ -79,11 +79,12 @@ async function saveAttendanceEvent(event) {
         await LiveAttendance.updateOne(filter, {
             $set: {
                 student_name: event.student_name,
+                entered_at: new Date(event.entered_at),
                 left_at: null,
+                source: "lms_meet_launch",
                 status: "present"
             },
             $setOnInsert: {
-                entered_at: new Date(event.entered_at),
                 duration_minutes: 0
             }
         }, { upsert: true });
@@ -96,18 +97,19 @@ async function saveAttendanceEvent(event) {
         ? Math.max(0, Math.round((leftAt.getTime() - enteredAt) / 60000))
         : 0;
 
-    await LiveAttendance.updateOne(filter, {
+    await LiveAttendance.updateOne({ ...filter, left_at: null }, {
         $set: {
             left_at: leftAt,
-            duration_minutes: duration,
             status: "present"
-        }
+        },
+        $inc: { duration_minutes: duration }
     });
 }
 
 async function publishAttendanceEvent(event) {
+    await saveAttendanceEvent(event);
     const producer = getKafkaProducer();
-    if (!producer) return saveAttendanceEvent(event);
+    if (!producer) return;
 
     try {
         await producer.send({
@@ -119,8 +121,7 @@ async function publishAttendanceEvent(event) {
             }]
         });
     } catch (error) {
-        console.error("Kafka attendance publish failed; persisting directly:", error.message);
-        await saveAttendanceEvent(event);
+        console.error("Kafka attendance publish failed after MongoDB persistence:", error.message);
     }
 }
 
@@ -188,16 +189,29 @@ async function leaveLiveClass({ classId, studentEmail }) {
     });
 }
 
-async function startAttendanceConsumer() {
-    const consumer = getKafkaConsumer();
-    if (!consumer) return;
+async function endLiveClassAttendance(classId, endedAt = new Date()) {
+    const activeRecords = await LiveAttendance.find({ class_id: classId, left_at: null }).lean();
+    await Promise.all(activeRecords.map((record) => {
+        const elapsedMinutes = Math.max(0, Math.round((endedAt.getTime() - new Date(record.entered_at).getTime()) / 60000));
+        return LiveAttendance.updateOne({ _id: record._id, left_at: null }, {
+            $set: { left_at: endedAt },
+            $inc: { duration_minutes: elapsedMinutes }
+        });
+    }));
 
-    await consumer.run({
-        eachMessage: async ({ message }) => {
-            if (!message.value) return;
-            await saveAttendanceEvent(JSON.parse(message.value.toString()));
-        }
-    });
+    const redis = getRedisClient();
+    if (redis) {
+        let cursor = "0";
+        do {
+            const [nextCursor, keys] = await redis.scan(cursor, "MATCH", `live-class:${classId}:student:*`, "COUNT", 100);
+            cursor = nextCursor;
+            if (keys.length) await redis.del(...keys);
+        } while (cursor !== "0");
+    }
+
+    for (const key of activeStudents.keys()) {
+        if (key.startsWith(`${classId}:`)) activeStudents.delete(key);
+    }
 }
 
 module.exports = {
@@ -207,5 +221,5 @@ module.exports = {
     invalidateLiveClassSnapshot,
     joinLiveClass,
     leaveLiveClass,
-    startAttendanceConsumer
+    endLiveClassAttendance
 };

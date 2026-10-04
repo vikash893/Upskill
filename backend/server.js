@@ -5,6 +5,7 @@ const cluster = require('node:cluster');
 const os = require('node:os');
 const mongoose = require('mongoose');
 const connectDb = require('./config/db');
+const { getGoogleOAuthConfig } = require('./config/google');
 const compression = require('compression');
 const cors = require('cors');
 const logger = require('./middleware/logger');
@@ -20,9 +21,9 @@ const paymentRouter = require('./router/payment');
 const assignmentRouter = require('./router/assignment');
 const lectureRouter = require('./router/lecture');
 const liveClassRouter = require('./router/liveClass');
+const liveStreamRouter = require('./router/liveStream');
 const { connectRedis, isRedisConnected, closeRedis } = require('./config/redis');
 const { connectKafka, isKafkaConnected, closeKafka } = require('./config/kafka');
-const { startAttendanceConsumer } = require('./services/liveAttendance');
 const logsRouter = require('./router/logs');
 const termsRouter = require('./router/terms');
 const contactRouter = require('./router/contact');
@@ -37,6 +38,33 @@ const app = express();
 const port = Number(process.env.PORT) || 8000;
 const workerCount = Math.max(1, Number.parseInt(process.env.WEB_CONCURRENCY, 10) || 1);
 
+function validateProductionConfig() {
+    if (process.env.NODE_ENV !== 'production') return;
+
+    const missing = [];
+    if (!process.env.MONGO_URL) missing.push('MONGO_URL');
+    if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32 || /replace_with|your_|placeholder|changeme/i.test(process.env.JWT_SECRET)) {
+        missing.push('JWT_SECRET (non-placeholder, minimum 32 characters)');
+    }
+
+    let frontendUrl;
+    try {
+        frontendUrl = new URL(process.env.FRONTEND_URL || '');
+    } catch {}
+    if (!frontendUrl || frontendUrl.protocol !== 'https:') missing.push('FRONTEND_URL (HTTPS origin)');
+
+    if (process.env.GOOGLE_MEET_ENABLED === 'true' && !getGoogleOAuthConfig()) {
+        missing.push('GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and HTTPS GOOGLE_REDIRECT_URI ending in /api/auth/google/meet/callback');
+    }
+
+    if (missing.length) {
+        console.error(`Production configuration invalid: ${missing.join('; ')}`);
+        process.exit(1);
+    }
+}
+
+validateProductionConfig();
+
 app.disable('x-powered-by');
 if (process.env.TRUST_PROXY === 'true') app.set('trust proxy', 1);
 
@@ -47,7 +75,12 @@ app.use((req, res, next) => {
 });
 
 app.use(compression());
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({
+    limit: '5mb',
+    verify(req, res, buffer) {
+        if (req.originalUrl.includes('/payment/webhook')) req.rawBody = Buffer.from(buffer);
+    }
+}));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 app.use(cors());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '1d', etag: true }));
@@ -91,15 +124,22 @@ app.use('/api', paymentRouter);
 app.use('/api', assignmentRouter);
 app.use('/api', lectureRouter);
 app.use('/api', liveClassRouter);
+app.use('/api', liveStreamRouter);
 app.use('/api', logsRouter);
 app.use('/api', termsRouter);
 app.use('/api', contactRouter);
 app.use('/api', certificateRouter);
+const http = require('node:http');
+const { Server } = require('socket.io');
+const scalableLiveClassRouter = require('./src/modules/live-class/routes/liveClass.routes');
+const registerLiveClassSocketHandlers = require('./src/modules/live-class/sockets/liveClass.socket');
+
 app.use('/api', adminDashboardRouter);
 app.use('/api', formsRouter);
 app.use('/api', announcementRouter);
 app.use('/api', activityRouter);
 app.use('/api', jobRouter);
+app.use('/api/scalable-live-class', scalableLiveClassRouter);
 app.use(announcementRouter);
 app.use(activityRouter);
 app.use(jobRouter);
@@ -107,14 +147,21 @@ app.use(jobRouter);
 async function startWorker() {
     await connectDb();
     await connectRedis();
-    const kafka = await connectKafka();
-    if (kafka) await startAttendanceConsumer();
-    const server = app.listen(port, () => {
-        console.log(`UniSkill API worker ${process.pid} listening on port ${port}.`);
+    await connectKafka();
+    
+    const server = http.createServer(app);
+    const io = new Server(server, {
+        cors: { origin: '*', methods: ['GET', 'POST'] }
+    });
+    registerLiveClassSocketHandlers(io);
+
+    server.listen(port, () => {
+        console.log(`UniSkill API worker ${process.pid} listening on port ${port} with Scalable Live Classroom system.`);
     });
     server.keepAliveTimeout = 65000;
     server.headersTimeout = 66000;
     server.requestTimeout = 120000;
+
 
     let shuttingDown = false;
     const shutdown = async (signal) => {
