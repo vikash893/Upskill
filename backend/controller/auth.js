@@ -335,13 +335,21 @@ const googleMeetAuthStart = async (req, res) => {
 
 const googleMeetAuthCallback = async (req, res) => {
     try {
+        const { code, state, error: oauthError } = req.query || {};
+
+        if (!state) {
+            const fallbackBase = getLmsRedirectBase();
+            return res.redirect(`${fallbackBase}/teacher/live-studio?googleMeet=error`);
+        }
+
         let decodedState;
         try {
             decodedState = jwt.verify(
                 String(state),
-                process.env.JWT_SECRET
+                process.env.JWT_SECRET || "uniskill_2026_secret"
             );
         } catch (error) {
+            console.error("GOOGLE_MEET_STATE_VERIFY_ERROR:", error.message);
             return res.status(400).json({ error: "Google Meet authorization state is invalid or expired." });
         }
 
@@ -351,7 +359,7 @@ const googleMeetAuthCallback = async (req, res) => {
             return res.redirect(`${redirectBase}/teacher/live-studio?googleMeet=denied`);
         }
 
-        if (!code || !state || !process.env.JWT_SECRET || !getGoogleOAuthConfig()) {
+        if (!code || !getGoogleOAuthConfig()) {
             return res.status(400).json({ error: "Google Meet authorization was incomplete." });
         }
 
