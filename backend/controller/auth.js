@@ -394,13 +394,23 @@ const googleMeetAuthCallback = async (req, res) => {
         }
 
         oauth2Client.setCredentials(tokens);
-        const grantedScopes = new Set(String(tokens.scope || "").split(/\s+/));
-        const requiredScopes = [
-            "https://www.googleapis.com/auth/calendar.events",
-            "https://www.googleapis.com/auth/meetings.space.created",
-            "email"
-        ];
-        if (requiredScopes.some(scope => !grantedScopes.has(scope))) {
+        const scopeString = String(tokens.scope || "");
+        const grantedScopes = new Set(scopeString.split(/\s+/));
+        console.log("GOOGLE_OAUTH_GRANTED_SCOPES:", scopeString);
+
+        const hasEmailScope = grantedScopes.has("email") || 
+                              grantedScopes.has("https://www.googleapis.com/auth/userinfo.email") ||
+                              grantedScopes.has("openid");
+                              
+        const hasCalendarScope = grantedScopes.has("https://www.googleapis.com/auth/calendar.events") || 
+                                grantedScopes.has("https://www.googleapis.com/auth/calendar");
+
+        const hasMeetScope = grantedScopes.has("https://www.googleapis.com/auth/meetings.space.created") || 
+                             grantedScopes.has("https://www.googleapis.com/auth/meetings") ||
+                             hasCalendarScope;
+
+        if (!hasEmailScope || (!hasCalendarScope && !hasMeetScope)) {
+            console.warn("GOOGLE_OAUTH_MISSING_SCOPES:", { scopeString, hasEmailScope, hasCalendarScope, hasMeetScope });
             return res.redirect(`${redirectBase}/teacher/live-studio?googleMeet=missing-scopes`);
         }
 
