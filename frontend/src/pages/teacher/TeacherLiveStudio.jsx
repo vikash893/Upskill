@@ -170,7 +170,8 @@ export default function TeacherLiveStudio() {
         return
       }
 
-      const data = await request('/auth/google/meet', {
+      const returnOrigin = window.location.origin
+      const data = await request(`/auth/google/meet?return_origin=${encodeURIComponent(returnOrigin)}`, {
         headers: { Authorization: `Bearer ${session.token}` },
       })
 

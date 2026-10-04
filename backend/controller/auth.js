@@ -289,11 +289,23 @@ const googleMeetAuthStart = async (req, res) => {
             return res.status(404).json({ error: "Teacher account not found." });
         }
 
+        const candidateOrigin = req.query.return_origin || req.headers.origin || (req.headers.referer ? new URL(req.headers.referer).origin : null);
+        let redirectOrigin = null;
+        if (candidateOrigin) {
+            try {
+                const parsed = new URL(candidateOrigin);
+                if (parsed.protocol === "https:" || ["localhost", "127.0.0.1"].includes(parsed.hostname)) {
+                    redirectOrigin = parsed.origin;
+                }
+            } catch {}
+        }
+
         const state = jwt.sign(
             {
                 teacherId: teacher._id.toString(),
                 role: "TEACHER",
-                purpose: "google-meet-oauth"
+                purpose: "google-meet-oauth",
+                redirectOrigin: redirectOrigin || getLmsRedirectBase()
             },
             process.env.JWT_SECRET || "uniskill_2026_secret",
             { expiresIn: "10m" }
@@ -323,18 +335,6 @@ const googleMeetAuthStart = async (req, res) => {
 
 const googleMeetAuthCallback = async (req, res) => {
     try {
-        const { code, state, error: oauthError } = req.query;
-
-        if (oauthError) {
-            return res.redirect(`${getLmsRedirectBase()}/teacher/live-studio?googleMeet=denied`);
-        }
-
-        if (!code || !state || !process.env.JWT_SECRET || !getGoogleOAuthConfig()) {
-            return res.status(400).json({ error: "Google Meet authorization was incomplete." });
-        }
-
-        const oauth2Client = createGoogleOAuthClient();
-
         let decodedState;
         try {
             decodedState = jwt.verify(
@@ -344,6 +344,18 @@ const googleMeetAuthCallback = async (req, res) => {
         } catch (error) {
             return res.status(400).json({ error: "Google Meet authorization state is invalid or expired." });
         }
+
+        const redirectBase = decodedState?.redirectOrigin || getLmsRedirectBase();
+
+        if (oauthError) {
+            return res.redirect(`${redirectBase}/teacher/live-studio?googleMeet=denied`);
+        }
+
+        if (!code || !state || !process.env.JWT_SECRET || !getGoogleOAuthConfig()) {
+            return res.status(400).json({ error: "Google Meet authorization was incomplete." });
+        }
+
+        const oauth2Client = createGoogleOAuthClient();
 
         if (decodedState.purpose !== "google-meet-oauth" || decodedState.role !== "TEACHER") {
             return res.status(400).json({ error: "Invalid Google Meet authorization request." });
@@ -356,7 +368,7 @@ const googleMeetAuthCallback = async (req, res) => {
 
         const { tokens } = await oauth2Client.getToken(String(code));
         if (!tokens) {
-            return res.redirect(`${getLmsRedirectBase()}/teacher/live-studio?googleMeet=missing-refresh-token`);
+            return res.redirect(`${redirectBase}/teacher/live-studio?googleMeet=missing-refresh-token`);
         }
 
         oauth2Client.setCredentials(tokens);
@@ -367,12 +379,12 @@ const googleMeetAuthCallback = async (req, res) => {
             "email"
         ];
         if (requiredScopes.some(scope => !grantedScopes.has(scope))) {
-            return res.redirect(`${getLmsRedirectBase()}/teacher/live-studio?googleMeet=missing-scopes`);
+            return res.redirect(`${redirectBase}/teacher/live-studio?googleMeet=missing-scopes`);
         }
 
         const profile = await google.oauth2({ version: "v2", auth: oauth2Client }).userinfo.get();
         if (!profile.data?.email || profile.data.verified_email !== true) {
-            return res.redirect(`${getLmsRedirectBase()}/teacher/live-studio?googleMeet=unverified-account`);
+            return res.redirect(`${redirectBase}/teacher/live-studio?googleMeet=unverified-account`);
         }
 
         const verifiedGoogleEmail = profile.data.email.toLowerCase();
@@ -380,7 +392,7 @@ const googleMeetAuthCallback = async (req, res) => {
             teacher.google_account_email === verifiedGoogleEmail ? teacher.google_refresh_token : null
         );
         if (!refreshToken) {
-            return res.redirect(`${getLmsRedirectBase()}/teacher/live-studio?googleMeet=missing-refresh-token`);
+            return res.redirect(`${redirectBase}/teacher/live-studio?googleMeet=missing-refresh-token`);
         }
 
         teacher.google_refresh_token = refreshToken;
@@ -391,10 +403,11 @@ const googleMeetAuthCallback = async (req, res) => {
         teacher.google_meet_connected_at = new Date();
         await teacher.save();
 
-        return res.redirect(`${getLmsRedirectBase()}/teacher/live-studio?googleMeet=connected`);
+        return res.redirect(`${redirectBase}/teacher/live-studio?googleMeet=connected`);
     } catch (error) {
         console.error("GOOGLE_MEET_AUTH_CALLBACK_ERROR", error.message);
-        return res.redirect(`${getLmsRedirectBase()}/teacher/live-studio?googleMeet=error`);
+        const fallbackBase = getLmsRedirectBase();
+        return res.redirect(`${fallbackBase}/teacher/live-studio?googleMeet=error`);
     }
 };
 

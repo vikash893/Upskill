@@ -68,9 +68,10 @@ validateProductionConfig();
 app.disable('x-powered-by');
 if (process.env.TRUST_PROXY === 'true') app.set('trust proxy', 1);
 
-// Load balancer & Worker telemetry headers
+// Load balancer & Worker telemetry headers + COOP for Google Sign-In popups
 app.use((req, res, next) => {
     res.setHeader('X-Worker-PID', String(process.pid));
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
     next();
 });
 

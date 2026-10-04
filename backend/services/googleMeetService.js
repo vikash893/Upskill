@@ -321,26 +321,13 @@ async function createGoogleMeetEvent({
 
   const safeStart = startTime ? new Date(startTime) : new Date();
   const safeEnd = endTime ? new Date(endTime) : new Date(safeStart.getTime() + 60 * 60 * 1000);
-  let space;
+  let space = null;
   try {
     const meet = google.meet({ version: 'v2', auth: teacherAuth });
     const spaceResponse = await meet.spaces.create({ requestBody: {} });
     space = spaceResponse.data;
   } catch (error) {
-    console.error('GOOGLE_MEET_SPACE_CREATE_ERROR:', error?.response?.status || error?.code || 'unknown');
-    return {
-      created: false,
-      configured: true,
-      message: 'Unable to create a Google Meet space. Check the teacher connection and Meet API permissions.',
-    };
-  }
-
-  if (!space?.name || !space?.meetingUri) {
-    return {
-      created: false,
-      configured: true,
-      message: 'Google Meet did not return a usable meeting space.',
-    };
+    console.warn('GOOGLE_MEET_SPACE_CREATE_FALLBACK: Meet API spaces.create failed, falling back to Calendar conferenceData.', error?.response?.status || error?.code || error?.message);
   }
 
   const calendarEvent = {
@@ -349,9 +336,9 @@ async function createGoogleMeetEvent({
       description,
       courseTitle ? `Course: ${courseTitle}` : '',
       teacherName ? `Teacher: ${teacherName}` : '',
-      `Google Meet: ${space.meetingUri}`,
+      space?.meetingUri ? `Google Meet: ${space.meetingUri}` : '',
     ].filter(Boolean).join('\n'),
-    location: space.meetingUri,
+    location: space?.meetingUri || '',
     start: {
       dateTime: safeStart.toISOString(),
       timeZone: env.GOOGLE_CALENDAR_TIMEZONE || 'UTC',
@@ -365,24 +352,54 @@ async function createGoogleMeetEvent({
     visibility: 'private',
   };
 
+  if (!space?.meetingUri) {
+    calendarEvent.conferenceData = {
+      createRequest: {
+        requestId: `meet_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        conferenceSolutionKey: { type: 'hangoutsMeet' },
+      },
+    };
+  }
+
   let calendarEventResponse = null;
   try {
     const calendar = google.calendar({ version: 'v3', auth: teacherAuth });
     calendarEventResponse = await calendar.events.insert({
       calendarId,
+      conferenceDataVersion: 1,
       resource: calendarEvent,
       sendUpdates: 'externalOnly',
     });
   } catch (error) {
-    console.error('GOOGLE_CALENDAR_EVENT_CREATE_ERROR:', error?.response?.status || error?.code || 'unknown');
+    console.error('GOOGLE_CALENDAR_EVENT_CREATE_ERROR:', error?.response?.status || error?.code || error?.message);
+  }
+
+  const resolvedMeetUrl =
+    space?.meetingUri ||
+    calendarEventResponse?.data?.hangoutLink ||
+    calendarEventResponse?.data?.conferenceData?.entryPoints?.find((e) => e.entryPointType === 'video')?.uri ||
+    null;
+
+  const resolvedSpaceId =
+    space?.name ||
+    (calendarEventResponse?.data?.conferenceData?.conferenceId
+      ? `spaces/${calendarEventResponse.data.conferenceData.conferenceId}`
+      : null);
+
+  if (!resolvedMeetUrl) {
+    return {
+      created: false,
+      configured: true,
+      message: 'Google Meet session could not be created. Please check teacher Google permissions and Calendar API.',
+    };
   }
 
   return {
     created: true,
     configured: true,
     eventId: calendarEventResponse?.data?.id || null,
-    meetSpaceId: space.name,
-    meetUrl: space.meetingUri,
+    meetSpaceId: resolvedSpaceId,
+    meetUrl: resolvedMeetUrl,
     resource: { space, calendarEvent: calendarEventResponse?.data || null },
     message: calendarEventResponse
       ? 'Google Meet space and Calendar event created successfully.'
