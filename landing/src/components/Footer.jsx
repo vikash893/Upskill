@@ -22,7 +22,7 @@ export default function Footer() {
         <div className="footer-grid">
           {/* Col 1: Brand & Bio */}
           <div className="footer-brand">
-            <Brand variant="wordmark" to="/" />
+            <Brand variant="logo" to="/" />
             <p>
               A modern digital learning academy engineered for clarity, practical mastery, and tangible career outcomes. Learn in public with leading engineering mentors.
             </p>
