@@ -23,7 +23,7 @@ export default function Footer() {
           
           {/* Col 1: Brand & Identity */}
           <div>
-            <Brand variant="wordmark" to="/" className="footer-wordmark" />
+            <Brand variant="logo" to="/" className="footer-wordmark" />
             <p style={{ fontSize: '13px', lineHeight: 1.7, color: '#9fa198', marginBottom: '20px' }}>
               A modern digital learning academy engineered for clarity, practical mastery, and career outcomes. Learn in public with leading mentors.
             </p>
