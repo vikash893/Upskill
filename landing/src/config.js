@@ -1,5 +1,7 @@
 export const APP_URL = import.meta.env.VITE_APP_URL || 'https://app.uniskill.in'
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+export const DEPLOYED_API_URL = 'https://api.uptrails.in/api'
+export const LOCAL_API_URL = 'http://localhost:8000/api'
+export const API_URL = import.meta.env.VITE_API_URL || DEPLOYED_API_URL
 
 export function getAppUrl(path = '') {
   const cleanPath = path ? (path.startsWith('/') ? path : `/${path}`) : ''

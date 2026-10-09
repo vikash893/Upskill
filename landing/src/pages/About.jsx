@@ -13,12 +13,17 @@ export default function About() {
     request('/public/platform-stats')
       .then((data) => {
         if (data.stats) setStats(data.stats)
+        if (data.faculty && data.faculty.length > 0) {
+          setTeachers(data.faculty)
+        }
       })
       .catch(() => {})
 
     request('/get-all-teachers')
       .then((data) => {
-        if (data.teachers) setTeachers(data.teachers)
+        if (data.teachers && data.teachers.length > 0) {
+          setTeachers(data.teachers)
+        }
       })
       .catch(() => {})
   }, [])
@@ -99,7 +104,7 @@ export default function About() {
             </p>
           </div>
 
-          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', padding: '36px', borderRadius: '12px' }}>
+          <div style={{ background: 'var(--light)', border: '1px solid var(--line)', padding: '36px', borderRadius: '12px' }}>
             <p className="eyebrow" style={{ color: 'var(--orange)' }}>OUR CORE MISSION</p>
             <h3 style={{ fontSize: '22px', margin: '0 0 14px', color: 'var(--ink)' }}>
               Transform aspiring students into confident software builders.
@@ -152,13 +157,14 @@ export default function About() {
       {/* Leadership & Faculty */}
       <section className="content-section">
         <div style={{ marginBottom: '36px' }}>
-          <p className="eyebrow">ACADEMIC LEADERSHIP</p>
+          <p className="eyebrow">ACADEMIC LEADERSHIP & FACULTY</p>
           <h2 className="section-title">
             Mentors dedicated to<br /><em>your practical growth.</em>
           </h2>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+          {/* Founder card */}
           <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', padding: '30px', borderRadius: '14px' }}>
             <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--orange)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 800, marginBottom: '16px' }}>
               TS
@@ -172,18 +178,46 @@ export default function About() {
             </p>
           </div>
 
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', padding: '30px', borderRadius: '14px' }}>
-            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#166534', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 800, marginBottom: '16px' }}>
-              VB
+          {/* Real Faculty / Teachers from backend */}
+          {teachers && teachers.length > 0 ? (
+            teachers.map((teacher) => (
+              <div key={teacher._id || teacher.email} style={{ background: 'var(--surface)', border: '1px solid var(--line)', padding: '30px', borderRadius: '14px' }}>
+                {teacher.photo ? (
+                  <img
+                    src={teacher.photo}
+                    alt={teacher.name}
+                    style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--line)', marginBottom: '16px', display: 'block' }}
+                  />
+                ) : (
+                  <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#166534', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 800, marginBottom: '16px' }}>
+                    {teacher.name ? teacher.name.charAt(0).toUpperCase() : 'F'}
+                  </div>
+                )}
+                <h3 style={{ margin: '0 0 4px', fontSize: '20px' }}>{teacher.name}</h3>
+                <span style={{ fontSize: '12px', color: '#166534', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
+                  {teacher.course_assigned && teacher.course_assigned.length > 0
+                    ? `Faculty Mentor · ${Array.isArray(teacher.course_assigned) ? teacher.course_assigned.join(', ') : teacher.course_assigned}`
+                    : 'Faculty Mentor & Engineer'}
+                </span>
+                <p style={{ fontSize: '13.5px', color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>
+                  Active industry practitioner mentoring cohorts on live engineering practices, system debugging, and evaluated coursework.
+                </p>
+              </div>
+            ))
+          ) : (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', padding: '30px', borderRadius: '14px' }}>
+              <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#166534', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 800, marginBottom: '16px' }}>
+                VB
+              </div>
+              <h3 style={{ margin: '0 0 4px', fontSize: '20px' }}>Vikash Bhardwaj</h3>
+              <span style={{ fontSize: '12px', color: '#166534', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
+                Lead Platform Architect
+              </span>
+              <p style={{ fontSize: '13.5px', color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>
+                Full-Stack Platform Engineer specializing in high-concurrency microservices, real-time classroom pipelines, and scalable ed-tech architecture.
+              </p>
             </div>
-            <h3 style={{ margin: '0 0 4px', fontSize: '20px' }}>Vikash Bhardwaj</h3>
-            <span style={{ fontSize: '12px', color: '#166534', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
-              Lead Platform Architect
-            </span>
-            <p style={{ fontSize: '13.5px', color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>
-              Full-Stack Platform Engineer specializing in high-concurrency microservices, real-time classroom pipelines, and scalable ed-tech architecture.
-            </p>
-          </div>
+          )}
         </div>
       </section>
 
