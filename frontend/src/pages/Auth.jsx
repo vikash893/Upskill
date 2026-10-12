@@ -170,13 +170,15 @@ export default function Auth({ initialMode = 'login' }) {
           throw new Error('Password must be at least 8 characters long, contain at least one uppercase letter and one special character (!@#$%^&*).')
         }
 
-        const fd = new FormData()
-        fd.append('name', form.name)
-        fd.append('email', form.email)
-        fd.append('phone', form.phone)
-        fd.append('password', form.password)
-
-        const data = await request('/auth/register', { method: 'POST', body: fd })
+        const data = await request('/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: form.name.trim(),
+            email: form.email.trim(),
+            phone: form.phone.trim(),
+            password: form.password
+          })
+        })
         
         // If server returns requires_otp, switch to on-page OTP verification step
         if (data.requires_otp) {
