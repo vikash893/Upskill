@@ -6,6 +6,7 @@ import { mediaUrl } from '../utils/mediaUrl'
 import AttendanceModal from '../components/AttendanceModal'
 import Skeleton from '../components/Skeleton'
 import { generateAndOpenLiveClass, getPlatformLiveClassUrl, openLiveClassWithAttendance } from '../utils/openLiveClass'
+import LiveClassVerificationModal from '../components/LiveClassVerificationModal'
 
 export default function LearningRoom() {
   const { courseId } = useParams()
@@ -13,6 +14,7 @@ export default function LearningRoom() {
   const { session } = useAuth()
   const navigate = useNavigate()
   const [course, setCourse] = useState(null)
+  const [verifyingClass, setVerifyingClass] = useState(null)
   
   const initialTab = searchParams.get('tab') || 'lectures'
   const [activeTab, setActiveTab] = useState(['lectures', 'assignments', 'live', 'announcements'].includes(initialTab) ? initialTab : 'lectures')
@@ -84,8 +86,7 @@ export default function LearningRoom() {
         return
       }
 
-      openLiveClassWithAttendance(liveClass.class_id, session.token)
-        .catch((err) => alert(err.message || 'Unable to join the live class right now.'))
+      setVerifyingClass(liveClass)
       return
     }
 
@@ -1460,6 +1461,16 @@ export default function LearningRoom() {
       {/* Attendance Modal */}
       {activeAttendanceClassId && (
         <AttendanceModal classId={activeAttendanceClassId} onClose={() => setActiveAttendanceClassId(null)} />
+      )}
+
+      {/* On-Page Live Security Verification Modal */}
+      {verifyingClass && (
+        <LiveClassVerificationModal
+          classId={verifyingClass.class_id}
+          classTitle={verifyingClass.title}
+          courseTitle={course?.course_title || verifyingClass.course_title}
+          onClose={() => setVerifyingClass(null)}
+        />
       )}
     </div>
   )

@@ -33,6 +33,22 @@ export default function Auth({ initialMode = 'login' }) {
   const [googleBtnRendered, setGoogleBtnRendered] = useState(false)
   const googleBtnRef = useRef(null)
 
+  // OTP Verification state for manual registration
+  const [otpStep, setOtpStep] = useState(false)
+  const [otp, setOtp] = useState('')
+  const [otpEmail, setOtpEmail] = useState('')
+  const [resendCooldown, setResendCooldown] = useState(0)
+  const [otpSuccessMessage, setOtpSuccessMessage] = useState('')
+
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [resendCooldown])
+
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
   const isGoogleConfigured = googleClientId && googleClientId !== 'YOUR_GOOGLE_CLIENT_ID_HERE'
 
@@ -140,6 +156,7 @@ export default function Auth({ initialMode = 'login' }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    setOtpSuccessMessage('')
     setLoading(true)
 
     try {
@@ -160,6 +177,16 @@ export default function Auth({ initialMode = 'login' }) {
         fd.append('password', form.password)
 
         const data = await request('/auth/register', { method: 'POST', body: fd })
+        
+        // If server returns requires_otp, switch to on-page OTP verification step
+        if (data.requires_otp) {
+          setOtpStep(true)
+          setOtpEmail(data.email || form.email)
+          setResendCooldown(30)
+          setOtpSuccessMessage('Verification code sent to your email. Enter the 6-digit code below.')
+          return
+        }
+
         const userSession = {
           token: data.token,
           role: data.user?.role || 'STUDENT',
@@ -188,6 +215,59 @@ export default function Auth({ initialMode = 'login' }) {
       }
     } catch (err) {
       setError(err.message || 'Authentication failed. Please verify credentials.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Handle Verify OTP
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault()
+    if (!otp || otp.trim().length !== 6) {
+      setError('Please enter the 6-digit verification code.')
+      return
+    }
+
+    setError('')
+    setLoading(true)
+    try {
+      const data = await request('/auth/register/verify-otp', {
+        method: 'POST',
+        body: JSON.stringify({ email: otpEmail, otp: otp.trim() })
+      })
+
+      const userSession = {
+        token: data.token,
+        role: data.user?.role || 'STUDENT',
+        email: data.user?.email || otpEmail,
+        name: data.user?.name || form.name,
+        photo: data.user?.photo || null,
+      }
+      login(userSession)
+      celebrate()
+      navigate(redirectPath)
+    } catch (err) {
+      setError(err.message || 'Invalid or expired verification code.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Handle Resend OTP (with 30-second rate-limit)
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return
+    setError('')
+    setOtpSuccessMessage('')
+    setLoading(true)
+    try {
+      await request('/auth/register/resend-otp', {
+        method: 'POST',
+        body: JSON.stringify({ email: otpEmail })
+      })
+      setResendCooldown(30)
+      setOtpSuccessMessage('New verification code sent! Check your email.')
+    } catch (err) {
+      setError(err.message || 'Failed to resend code. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -371,112 +451,225 @@ export default function Auth({ initialMode = 'login' }) {
           </div>
 
           {/* Authentication Form */}
-          <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '14px' }}>
-            {activeMode === 'register' && (
-              <>
-                <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>
-                  FULL NAME *
-                  <input
-                    required
-                    placeholder="e.g. Rahul Sharma"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    style={{ padding: '11px 14px', border: '1px solid var(--line)', borderRadius: '6px', fontSize: '13px', background: '#FFFFFF' }}
-                  />
-                </label>
+          {otpStep && activeMode === 'register' ? (
+            /* ─── Inline OTP Verification Step ─── */
+            <form onSubmit={handleVerifyOtp} style={{ display: 'grid', gap: '14px' }}>
+              {otpSuccessMessage && (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    background: '#F0FDF4',
+                    border: '1px solid #BBF7D0',
+                    color: '#166534',
+                    borderRadius: '6px',
+                    fontSize: '12.5px',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {otpSuccessMessage}
+                </div>
+              )}
 
-                <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>
-                  PHONE NUMBER *
-                  <input
-                    required
-                    placeholder="+91 98765 43210"
-                    value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    style={{ padding: '11px 14px', border: '1px solid var(--line)', borderRadius: '6px', fontSize: '13px', background: '#FFFFFF' }}
-                  />
-                </label>
-              </>
-            )}
+              <div style={{ textAlign: 'center', padding: '6px 0' }}>
+                <div style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  background: '#EFF6FF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '26px',
+                  margin: '0 auto 12px',
+                  border: '2px solid #BFDBFE'
+                }}>
+                  ✉️
+                </div>
+                <h3 style={{ margin: '0 0 4px', fontSize: '18px', color: 'var(--ink)' }}>
+                  Verify your email
+                </h3>
+                <p style={{ margin: 0, fontSize: '13px', color: 'var(--muted)' }}>
+                  We sent a 6-digit code to <strong style={{ color: 'var(--ink)' }}>{otpEmail}</strong>
+                </p>
+              </div>
 
-            <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>
-              EMAIL ADDRESS *
-              <input
-                required
-                type="email"
-                placeholder="name@email.com"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                style={{ padding: '11px 14px', border: '1px solid var(--line)', borderRadius: '6px', fontSize: '13px', background: '#FFFFFF' }}
-              />
-            </label>
-
-            <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>
-              PASSWORD *
-              <input
-                required
-                type={showPassword ? 'text' : 'password'}
-                placeholder="••••••••"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                style={{ padding: '11px 14px', border: '1px solid var(--line)', borderRadius: '6px', fontSize: '13px', background: '#FFFFFF' }}
-              />
-            </label>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--muted)', cursor: 'pointer' }}>
+              <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>
+                VERIFICATION CODE *
                 <input
-                  type="checkbox"
-                  checked={showPassword}
-                  onChange={(e) => setShowPassword(e.target.checked)}
+                  required
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="Enter 6-digit code"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                  autoFocus
+                  style={{
+                    padding: '14px',
+                    border: '1px solid var(--line)',
+                    borderRadius: '6px',
+                    fontSize: '20px',
+                    fontWeight: 700,
+                    letterSpacing: '8px',
+                    textAlign: 'center',
+                    background: '#FFFFFF'
+                  }}
                 />
-                Show password
               </label>
+
+              <button
+                type="submit"
+                disabled={loading || otp.length !== 6}
+                className="primary-button"
+                style={{ width: '100%', padding: '12px', fontSize: '14px' }}
+              >
+                {loading ? 'Verifying...' : 'Verify & Create Account ↗'}
+              </button>
+
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--muted)' }}>
+                <span>Didn't receive the code?</span>
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={resendCooldown > 0 || loading}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: resendCooldown > 0 ? 'var(--muted)' : 'var(--orange)',
+                    fontWeight: 700,
+                    cursor: resendCooldown > 0 ? 'default' : 'pointer',
+                    padding: 0,
+                  }}
+                >
+                  {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => { setOtpStep(false); setOtp(''); setError(''); setOtpSuccessMessage('') }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '12px',
+                  color: 'var(--muted)',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  textAlign: 'center',
+                }}
+              >
+                ← Back to registration form
+              </button>
+            </form>
+          ) : (
+            /* ─── Standard Login / Register Form ─── */
+            <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '14px' }}>
+              {activeMode === 'register' && (
+                <>
+                  <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>
+                    FULL NAME *
+                    <input
+                      required
+                      placeholder="e.g. Rahul Sharma"
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      style={{ padding: '11px 14px', border: '1px solid var(--line)', borderRadius: '6px', fontSize: '13px', background: '#FFFFFF' }}
+                    />
+                  </label>
+
+                  <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>
+                    PHONE NUMBER *
+                    <input
+                      required
+                      placeholder="+91 98765 43210"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      style={{ padding: '11px 14px', border: '1px solid var(--line)', borderRadius: '6px', fontSize: '13px', background: '#FFFFFF' }}
+                    />
+                  </label>
+                </>
+              )}
+
+              <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>
+                EMAIL ADDRESS *
+                <input
+                  required
+                  type="email"
+                  placeholder="name@email.com"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  style={{ padding: '11px 14px', border: '1px solid var(--line)', borderRadius: '6px', fontSize: '13px', background: '#FFFFFF' }}
+                />
+              </label>
+
+              <label style={{ display: 'grid', gap: '5px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>
+                PASSWORD *
+                <input
+                  required
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  style={{ padding: '11px 14px', border: '1px solid var(--line)', borderRadius: '6px', fontSize: '13px', background: '#FFFFFF' }}
+                />
+              </label>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--muted)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={showPassword}
+                    onChange={(e) => setShowPassword(e.target.checked)}
+                  />
+                  Show password
+                </label>
+
+                {activeMode === 'register' && (
+                  <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                    Min. 8 chars, 1 uppercase, 1 symbol
+                  </span>
+                )}
+              </div>
 
               {activeMode === 'register' && (
-                <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                  Min. 8 chars, 1 uppercase, 1 symbol
-                </span>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '12px', color: 'var(--muted)', marginTop: '4px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    required
+                    checked={agreedTerms}
+                    onChange={(e) => setAgreedTerms(e.target.checked)}
+                    style={{ marginTop: '2px' }}
+                  />
+                  <span>
+                    I agree to the{' '}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setShowTermsModal(true)
+                      }}
+                      style={{ background: 'none', border: 'none', color: 'var(--orange)', padding: 0, textDecoration: 'underline', cursor: 'pointer' }}
+                    >
+                      Terms of Service & Privacy Policy
+                    </button>
+                  </span>
+                </label>
               )}
-            </div>
 
-            {activeMode === 'register' && (
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '12px', color: 'var(--muted)', marginTop: '4px', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  required
-                  checked={agreedTerms}
-                  onChange={(e) => setAgreedTerms(e.target.checked)}
-                  style={{ marginTop: '2px' }}
-                />
-                <span>
-                  I agree to the{' '}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      setShowTermsModal(true)
-                    }}
-                    style={{ background: 'none', border: 'none', color: 'var(--orange)', padding: 0, textDecoration: 'underline', cursor: 'pointer' }}
-                  >
-                    Terms of Service & Privacy Policy
-                  </button>
-                </span>
-              </label>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="primary-button"
-              style={{ width: '100%', padding: '12px', marginTop: '10px', fontSize: '14px' }}
-            >
-              {loading
-                ? 'Authenticating...'
-                : activeMode === 'login'
-                ? 'Sign In to Workspace ↗'
-                : 'Create Account & Continue ↗'}
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={loading}
+                className="primary-button"
+                style={{ width: '100%', padding: '12px', marginTop: '10px', fontSize: '14px' }}
+              >
+                {loading
+                  ? 'Authenticating...'
+                  : activeMode === 'login'
+                  ? 'Sign In to Workspace ↗'
+                  : 'Create Account & Continue ↗'}
+              </button>
+            </form>
+          )}
 
           {/* Footer note */}
           <p style={{ textAlign: 'center', fontSize: '12px', color: 'var(--muted)', marginTop: '22px', marginBottom: 0 }}>

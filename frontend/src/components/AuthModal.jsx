@@ -19,6 +19,19 @@ export default function AuthModal({ mode, onClose }) {
   const { login } = useAuth()
   const navigate = useNavigate()
 
+  // OTP state
+  const [otpStep, setOtpStep] = useState(false)
+  const [otp, setOtp] = useState('')
+  const [otpEmail, setOtpEmail] = useState('')
+  const [resendCooldown, setResendCooldown] = useState(0)
+  const [otpMessage, setOtpMessage] = useState('')
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const timer = setInterval(() => setResendCooldown(p => p > 0 ? p - 1 : 0), 1000)
+    return () => clearInterval(timer)
+  }, [resendCooldown])
+
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
   const isGoogleConfigured = googleClientId && googleClientId !== 'YOUR_GOOGLE_CLIENT_ID_HERE'
 
@@ -117,10 +130,18 @@ export default function AuthModal({ mode, onClose }) {
     event.preventDefault()
     prepareCelebrationAudio()
     setError('')
+    setOtpMessage('')
     setLoading(true)
     try {
       if (activeMode === 'register') {
-        await request('/auth/register', { method: 'POST', body: JSON.stringify(form) })
+        const data = await request('/auth/register', { method: 'POST', body: JSON.stringify(form) })
+        if (data.requires_otp) {
+          setOtpStep(true)
+          setOtpEmail(data.email || form.email)
+          setResendCooldown(30)
+          setOtpMessage('Verification code sent to your email.')
+          return
+        }
         setActiveMode('login')
         setError('Account created. Sign in to continue.')
       } else {
@@ -145,6 +166,30 @@ export default function AuthModal({ mode, onClose }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault()
+    if (!otp || otp.trim().length !== 6) { setError('Enter the 6-digit code.'); return }
+    setError(''); setLoading(true)
+    try {
+      const data = await request('/auth/register/verify-otp', {
+        method: 'POST', body: JSON.stringify({ email: otpEmail, otp: otp.trim() })
+      })
+      login({ token: data.token, role: data.user?.role || 'STUDENT', email: data.user?.email || otpEmail, name: data.user?.name || form.name, photo: data.user?.photo || null })
+      celebrate(); onClose(); navigate('/dashboard')
+    } catch (err) { setError(err.message || 'Invalid or expired code.') }
+    finally { setLoading(false) }
+  }
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return
+    setError(''); setOtpMessage(''); setLoading(true)
+    try {
+      await request('/auth/register/resend-otp', { method: 'POST', body: JSON.stringify({ email: otpEmail }) })
+      setResendCooldown(30); setOtpMessage('New code sent!')
+    } catch (err) { setError(err.message || 'Resend failed.') }
+    finally { setLoading(false) }
   }
 
   return (
@@ -217,52 +262,81 @@ export default function AuthModal({ mode, onClose }) {
             </div>
         </div>
 
-        <form onSubmit={submit}>
-          {activeMode === 'register' && (
-            <>
-              <label>Full name
-                <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-              </label>
-              <label>Phone number
-                <input required inputMode="numeric" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-              </label>
-            </>
-          )}
-          <label>Email address
-            <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-          </label>
-          <label>Password
-            <input required type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-          </label>
-
-          {activeMode === 'register' && (
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '11px', color: 'var(--muted)', cursor: 'pointer', margin: '4px 0' }}>
-              <input
-                type="checkbox"
-                required
-                checked={agreedTerms}
-                onChange={(e) => setAgreedTerms(e.target.checked)}
-                style={{ width: '15px', height: '15px', marginTop: '2px', accentColor: 'var(--orange)' }}
-              />
-              <span>
-                I agree to the{' '}
-                <button
-                  type="button"
-                  onClick={(e) => { e.preventDefault(); setShowTermsModal(true); }}
-                  style={{ background: 'none', border: 0, padding: 0, color: 'var(--orange)', textDecoration: 'underline', cursor: 'pointer', font: 'inherit' }}
-                >
-                  Terms & Conditions and Privacy Policy
-                </button>
-                {' '}(including secure session & IP verification).
-              </span>
+        {otpStep && activeMode === 'register' ? (
+          <form onSubmit={handleVerifyOtp}>
+            {otpMessage && <p className="form-message" style={{ color: '#166534', background: '#F0FDF4', border: '1px solid #BBF7D0' }}>{otpMessage}</p>}
+            <div style={{ textAlign: 'center', padding: '8px 0' }}>
+              <p style={{ fontSize: '13px', color: 'var(--muted)', margin: '0 0 8px' }}>Enter the 6-digit code sent to <strong>{otpEmail}</strong></p>
+            </div>
+            <label>Verification Code
+              <input required type="text" inputMode="numeric" maxLength={6} placeholder="000000" value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} autoFocus
+                style={{ fontSize: '20px', letterSpacing: '8px', textAlign: 'center', fontWeight: 700 }} />
             </label>
-          )}
+            {error && <p className="form-message">{error}</p>}
+            <button className="primary-button full-width" disabled={loading || otp.length !== 6}>
+              {loading ? 'Verifying...' : 'Verify & Create Account'}
+            </button>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', fontSize: '12px', color: 'var(--muted)', marginTop: '8px' }}>
+              <span>Didn't get it?</span>
+              <button type="button" onClick={handleResendOtp} disabled={resendCooldown > 0}
+                style={{ background: 'none', border: 'none', color: resendCooldown > 0 ? 'var(--muted)' : 'var(--orange)', fontWeight: 700, cursor: resendCooldown > 0 ? 'default' : 'pointer', padding: 0 }}>
+                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend'}
+              </button>
+            </div>
+            <button type="button" onClick={() => { setOtpStep(false); setOtp(''); setError(''); setOtpMessage('') }}
+              style={{ background: 'none', border: 'none', fontSize: '12px', color: 'var(--muted)', cursor: 'pointer', textDecoration: 'underline', width: '100%', textAlign: 'center', marginTop: '6px' }}>
+              ← Back to registration
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={submit}>
+            {activeMode === 'register' && (
+              <>
+                <label>Full name
+                  <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                </label>
+                <label>Phone number
+                  <input required inputMode="numeric" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                </label>
+              </>
+            )}
+            <label>Email address
+              <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            </label>
+            <label>Password
+              <input required type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+            </label>
 
-          {error && <p className="form-message">{error}</p>}
-          <button className="primary-button full-width" disabled={loading || googleLoading}>
-            {loading ? 'Please wait...' : activeMode === 'login' ? 'Enter UniSkill' : 'Create my account'}
-          </button>
-        </form>
+            {activeMode === 'register' && (
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '11px', color: 'var(--muted)', cursor: 'pointer', margin: '4px 0' }}>
+                <input
+                  type="checkbox"
+                  required
+                  checked={agreedTerms}
+                  onChange={(e) => setAgreedTerms(e.target.checked)}
+                  style={{ width: '15px', height: '15px', marginTop: '2px', accentColor: 'var(--orange)' }}
+                />
+                <span>
+                  I agree to the{' '}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); setShowTermsModal(true); }}
+                    style={{ background: 'none', border: 0, padding: 0, color: 'var(--orange)', textDecoration: 'underline', cursor: 'pointer', font: 'inherit' }}
+                  >
+                    Terms & Conditions and Privacy Policy
+                  </button>
+                  {' '}(including secure session & IP verification).
+                </span>
+              </label>
+            )}
+
+            {error && <p className="form-message">{error}</p>}
+            <button className="primary-button full-width" disabled={loading || googleLoading}>
+              {loading ? 'Please wait...' : activeMode === 'login' ? 'Enter UniSkill' : 'Create my account'}
+            </button>
+          </form>
+        )}
       </section>
 
       {showTermsModal && (

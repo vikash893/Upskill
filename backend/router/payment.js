@@ -338,8 +338,12 @@ const handleLegacyVerifyPayment = async (req, res) => {
         if (course_id) {
             const course = await Course.findOne({ course_id });
             const user = await User.findOne({ email: studentEmail });
-            const selectedPlan = plan_type === "yearly" ? "yearly" : "monthly";
-            const expiryDays = selectedPlan === "yearly" ? 365 : 30;
+            const selectedPlan = plan_type === "yearly" ? "yearly" : (plan_type === "monthly" ? "monthly" : "custom");
+            // Calculate expiry from course duration fields
+            const durMonths = Math.max(0, parseInt(course?.duration_months, 10) || 0);
+            const durDays = Math.max(0, parseInt(course?.duration_days, 10) || 0);
+            let expiryDays = (durMonths * 30) + durDays;
+            if (expiryDays <= 0) expiryDays = selectedPlan === "yearly" ? 365 : 30;
             const now = new Date();
             const planExpiry = new Date(now.getTime() + expiryDays * 24 * 60 * 60 * 1000);
 

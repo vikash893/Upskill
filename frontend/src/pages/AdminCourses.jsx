@@ -17,8 +17,8 @@ export default function AdminCourses() {
     course_title: '',
     course_description: '',
     course_amount: '',
-    monthly_amount: '',
-    yearly_amount: '',
+    duration_months: '',
+    duration_days: '',
     course_type: 'paid',
   })
   const [photo, setPhoto] = useState(null)
@@ -99,19 +99,19 @@ export default function AdminCourses() {
       fd.append('course_title', form.course_title)
       fd.append('course_description', form.course_description)
       fd.append('course_type', form.course_type)
-      fd.append('course_amount', form.course_amount || form.monthly_amount || '0')
-      fd.append('monthly_amount', form.monthly_amount || form.course_amount || '0')
-      fd.append('yearly_amount', form.yearly_amount || '0')
+      fd.append('course_amount', form.course_amount || '0')
+      fd.append('duration_months', form.duration_months || '0')
+      fd.append('duration_days', form.duration_days || '0')
       if (photo) fd.append('photo', photo)
 
       await request('/add-course', { method: 'POST', headers: { Authorization: `Bearer ${session.token}` }, body: fd })
-      setMessage('Course added successfully with Monthly and Yearly pricing options!')
+      setMessage('Course added successfully!')
       setForm({
         course_title: '',
         course_description: '',
         course_amount: '',
-        monthly_amount: '',
-        yearly_amount: '',
+        duration_months: '',
+        duration_days: '',
         course_type: 'paid',
       })
       setPhoto(null)
@@ -283,27 +283,38 @@ export default function AdminCourses() {
               {form.course_type === 'paid' && (
                 <>
                   <label style={{ display: 'grid', gap: '6px', color: 'var(--muted)', fontSize: '11px' }}>
-                    Monthly Plan Fee (₹ / month) *
+                    Course Fee (₹) *
                     <input
                       type="number"
                       min="1"
                       required
-                      placeholder="e.g. 999"
-                      value={form.monthly_amount}
-                      onChange={(e) => setForm({ ...form, monthly_amount: e.target.value, course_amount: e.target.value })}
+                      placeholder="e.g. 1499"
+                      value={form.course_amount}
+                      onChange={(e) => setForm({ ...form, course_amount: e.target.value })}
                       style={{ padding: '12px', border: '1px solid var(--line)', background: '#FFFFFF' }}
                     />
                   </label>
 
                   <label style={{ display: 'grid', gap: '6px', color: 'var(--muted)', fontSize: '11px' }}>
-                    Yearly Plan Fee (₹ / year) *
+                    Duration (Months)
                     <input
                       type="number"
-                      min="1"
-                      required
-                      placeholder="e.g. 7999"
-                      value={form.yearly_amount}
-                      onChange={(e) => setForm({ ...form, yearly_amount: e.target.value })}
+                      min="0"
+                      placeholder="e.g. 3"
+                      value={form.duration_months}
+                      onChange={(e) => setForm({ ...form, duration_months: e.target.value })}
+                      style={{ padding: '12px', border: '1px solid var(--line)', background: '#FFFFFF' }}
+                    />
+                  </label>
+
+                  <label style={{ display: 'grid', gap: '6px', color: 'var(--muted)', fontSize: '11px' }}>
+                    Duration (Days)
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="e.g. 15"
+                      value={form.duration_days}
+                      onChange={(e) => setForm({ ...form, duration_days: e.target.value })}
                       style={{ padding: '12px', border: '1px solid var(--line)', background: '#FFFFFF' }}
                     />
                   </label>
@@ -437,8 +448,8 @@ export default function AdminCourses() {
           <div style={{ display: 'grid', gap: '14px' }}>
             {courses.map((c) => {
               const img = mediaUrl(c.photo)
-              const monthly = c.monthly_amount || c.course_amount || 0
-              const yearly = c.yearly_amount || (monthly > 0 ? monthly * 10 : 0)
+              const durMonths = c.duration_months || 0
+              const durDays = c.duration_days || 0
               const activeCoupons = (c.coupons || []).filter((cp) => !cp.expires_at || new Date() < new Date(cp.expires_at))
               const totalCoupons = (c.coupons || []).length
 
@@ -452,7 +463,10 @@ export default function AdminCourses() {
                         <span style={{ color: '#166534', fontWeight: 600 }}>Free Course</span>
                       ) : (
                         <span>
-                          <strong>Monthly:</strong> ₹{monthly} · <strong>Yearly:</strong> ₹{yearly}
+                          <strong>Fee:</strong> ₹{c.course_amount || c.actual_amount || 0}
+                          {(durMonths > 0 || durDays > 0) && (
+                            <> · <strong>Duration:</strong> {durMonths > 0 ? `${durMonths}M ` : ''}{durDays > 0 ? `${durDays}D` : ''}</>
+                          )}
                         </span>
                       )}
                       {c.discount > 0 && ` · Flash: ${c.discount}% off`}

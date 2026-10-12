@@ -16,11 +16,11 @@ async function buildPaymentQuote(items, studentEmail, now = new Date()) {
 
   const normalizedItems = items.map((item) => ({
     course_id: String(item?.course_id || '').trim(),
-    plan_type: item?.plan_type === 'yearly' ? 'yearly' : item?.plan_type === 'monthly' ? 'monthly' : null,
+    plan_type: item?.plan_type === 'yearly' ? 'yearly' : (item?.plan_type === 'monthly' ? 'monthly' : 'custom'),
     coupon_code: String(item?.coupon_code || '').trim().toUpperCase(),
   }));
-  if (normalizedItems.some((item) => !item.course_id || !item.plan_type)) {
-    throw quoteError('Each cart item needs a course and a monthly or yearly plan.');
+  if (normalizedItems.some((item) => !item.course_id)) {
+    throw quoteError('Each cart item needs a valid course.');
   }
   if (new Set(normalizedItems.map((item) => item.course_id)).size !== normalizedItems.length) {
     throw quoteError('A course can only appear once in the cart.');
@@ -40,22 +40,29 @@ async function buildPaymentQuote(items, studentEmail, now = new Date()) {
     if (!course) throw quoteError(`Course ${cartItem.course_id} was not found.`, 404);
     if (course.course_type !== 'paid') throw quoteError(`${course.course_title} is free and should be enrolled without checkout.`);
 
-    const period = course.pricing_period || 'both';
-    if ((period === 'monthly' && cartItem.plan_type === 'yearly') || (period === 'yearly' && cartItem.plan_type === 'monthly')) {
-      throw quoteError(`${course.course_title} does not offer the selected billing plan.`);
-    }
-
     const activeEnrollment = enrollmentById.get(course.course_id);
     if (activeEnrollment && (!activeEnrollment.plan_expiry || new Date(activeEnrollment.plan_expiry) > now)) {
       throw quoteError(`You already have active enrollment in ${course.course_title}.`);
     }
 
-    const monthlyAmount = Number(course.monthly_amount) > 0 ? Number(course.monthly_amount) : Number(course.course_amount || 0);
-    const baseAmount = cartItem.plan_type === 'yearly'
-      ? Number(course.yearly_amount) > 0 ? Number(course.yearly_amount) : monthlyAmount * 10
-      : monthlyAmount;
+    // Determine course price: prioritize course_amount, fallback to monthly_amount
+    let baseAmount = Number(course.course_amount) > 0 ? Number(course.course_amount) : Number(course.monthly_amount || 0);
+    // If legacy client explicitly requests yearly and course has yearly_amount:
+    if (cartItem.plan_type === 'yearly' && Number(course.yearly_amount) > 0) {
+      baseAmount = Number(course.yearly_amount);
+    }
+
     if (!Number.isFinite(baseAmount) || baseAmount <= 0) {
-      throw quoteError(`${course.course_title} does not have a valid price for the selected plan.`);
+      throw quoteError(`${course.course_title} does not have a valid price.`);
+    }
+
+    // Calculate expiry days from months and days
+    const durMonths = Math.max(0, parseInt(course.duration_months, 10) || 0);
+    const durDays = Math.max(0, parseInt(course.duration_days, 10) || 0);
+    let totalExpiryDays = (durMonths * 30) + durDays;
+    if (totalExpiryDays <= 0) {
+      // Default to 30 days if neither is set
+      totalExpiryDays = cartItem.plan_type === 'yearly' ? 365 : 30;
     }
 
     const courseDiscountPercent = Number(course.discount) > 0 && course.discount_time && new Date(course.discount_time) > now
@@ -75,8 +82,10 @@ async function buildPaymentQuote(items, studentEmail, now = new Date()) {
       course_id: course.course_id,
       course_title: course.course_title,
       photo: course.photo ? course.photo.replace(/\\/g, '/') : null,
-      plan_type: cartItem.plan_type,
-      plan_expiry_days: cartItem.plan_type === 'yearly' ? 365 : 30,
+      plan_type: cartItem.plan_type || 'custom',
+      duration_months: durMonths,
+      duration_days: durDays,
+      plan_expiry_days: totalExpiryDays,
       base_amount: baseAmount,
       course_discount_percent: courseDiscountPercent,
       coupon_code: coupon?.code || null,

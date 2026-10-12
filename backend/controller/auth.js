@@ -5,6 +5,8 @@ const Admin = require("../models/admin");
 const jwt = require("jsonwebtoken");
 const { persistFile } = require("../config/cloudinary");
 const { google, createGoogleOAuthClient, getGoogleOAuthConfig } = require("../config/google");
+const { getCache, setCache, delCache } = require("../config/redis");
+const { sendRegistrationOtp } = require("../services/n8nMailService");
 
 const emailFilterFor = (email) => {
     const escapedEmail = email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -58,28 +60,151 @@ const userRegister = async (req, res) => {
         // Hash password
         const hashPassword = await bcrypt.hash(password, 10);
 
-        // Create user
-        const newUser = new User({
+        // Generate 6-digit verification code
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const cacheKey = `reg_otp_${normalizedEmail}`;
+
+        // Cache registration data for 10 minutes (600 seconds)
+        await setCache(cacheKey, {
             name,
             email: normalizedEmail,
             phone,
             password: hashPassword,
-            photo
+            photo,
+            otp,
+            last_sent_at: Date.now()
+        }, 600);
+
+        // Dispatch OTP via n8n pipeline or fallback
+        await sendRegistrationOtp({
+            email: normalizedEmail,
+            name,
+            otp
         });
 
-        await newUser.save();
-
-        return res.status(201).json({
-            message: "User registered successfully"
+        return res.status(200).json({
+            message: "Verification code sent to your email.",
+            requires_otp: true,
+            email: normalizedEmail
         });
 
     } catch (error) {
-
-        console.log(error);
-
+        console.log("REGISTER ERROR:", error);
         return res.status(500).json({
             error: "Internal server error"
         });
+    }
+};
+
+const verifyRegisterOtp = async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+        if (!email || !otp) {
+            return res.status(400).json({ error: "Email and verification code are required." });
+        }
+
+        const normalizedEmail = String(email).trim().toLowerCase();
+        const cacheKey = `reg_otp_${normalizedEmail}`;
+        const cached = await getCache(cacheKey);
+
+        if (!cached || !cached.otp) {
+            return res.status(400).json({ error: "Verification code has expired. Please request a new code." });
+        }
+
+        if (String(cached.otp).trim() !== String(otp).trim()) {
+            return res.status(400).json({ error: "Invalid verification code. Please check and try again." });
+        }
+
+        const emailFilter = emailFilterFor(normalizedEmail);
+        const existing = await User.findOne(emailFilter);
+        if (existing) {
+            await delCache(cacheKey);
+            return res.status(409).json({ error: "An account with this email already exists." });
+        }
+
+        const newUser = new User({
+            name: cached.name,
+            email: normalizedEmail,
+            phone: cached.phone || "",
+            password: cached.password,
+            photo: cached.photo || null
+        });
+
+        await newUser.save();
+        await delCache(cacheKey);
+
+        const token = jwt.sign(
+            {
+                userId: newUser._id.toString(),
+                id: newUser._id.toString(),
+                email: newUser.email,
+                name: newUser.name,
+                role: "STUDENT",
+                photo: newUser.photo
+            },
+            process.env.JWT_SECRET || "uniskill_2026_secret",
+            { expiresIn: "7d" }
+        );
+
+        return res.status(201).json({
+            message: "Registration completed successfully.",
+            token,
+            user: {
+                _id: newUser._id,
+                name: newUser.name,
+                email: newUser.email,
+                role: "STUDENT",
+                photo: newUser.photo
+            }
+        });
+    } catch (error) {
+        console.error("VERIFY REGISTER OTP ERROR:", error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+};
+
+const resendRegisterOtp = async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ error: "Email is required." });
+        }
+
+        const normalizedEmail = String(email).trim().toLowerCase();
+        const cacheKey = `reg_otp_${normalizedEmail}`;
+        const cached = await getCache(cacheKey);
+
+        if (!cached) {
+            return res.status(400).json({ error: "Registration session has expired. Please fill out the registration form again." });
+        }
+
+        // Enforce 30-second cooldown rate limit
+        const now = Date.now();
+        if (cached.last_sent_at && (now - cached.last_sent_at) < 30000) {
+            const retryAfter = Math.ceil((30000 - (now - cached.last_sent_at)) / 1000);
+            return res.status(429).json({
+                error: `Please wait ${retryAfter} seconds before requesting a new code.`,
+                retry_after: retryAfter
+            });
+        }
+
+        const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+        cached.otp = newOtp;
+        cached.last_sent_at = now;
+        await setCache(cacheKey, cached, 600);
+
+        await sendRegistrationOtp({
+            email: normalizedEmail,
+            name: cached.name,
+            otp: newOtp
+        });
+
+        return res.status(200).json({
+            message: "A new verification code has been sent to your email."
+        });
+    } catch (error) {
+        console.error("RESEND REGISTER OTP ERROR:", error);
+        return res.status(500).json({ error: "Internal server error" });
     }
 };
 
@@ -560,6 +685,8 @@ const changePassword = async (req, res) => {
 
 module.exports = {
     userRegister,
+    verifyRegisterOtp,
+    resendRegisterOtp,
     userlogin,
     googleAuth,
     googleMeetAuthStart,

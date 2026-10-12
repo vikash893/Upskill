@@ -5,9 +5,9 @@ import Brand from './Brand'
 import { celebrate, prepareCelebrationAudio } from '../utils/celebration'
 import { loadRazorpayCheckout } from '../utils/razorpay'
 
-export default function PaymentModal({ course, initialPlan = 'monthly', onClose, onSuccess }) {
+export default function PaymentModal({ course, initialPlan = 'custom', onClose, onSuccess }) {
   const { session } = useAuth()
-  const [selectedPlan, setSelectedPlan] = useState(initialPlan) // 'monthly' or 'yearly'
+  const [selectedPlan, setSelectedPlan] = useState(initialPlan)
   const [couponCode, setCouponCode] = useState('')
   const [couponApplied, setCouponApplied] = useState(null)
   const [couponError, setCouponError] = useState('')
@@ -52,11 +52,15 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
     return () => { active = false }
   }, [course.course_id, selectedPlan, couponApplied?.coupon_code, session?.token])
 
-  // Calculate pricing based on selected plan
-  const monthlyBase = course.monthly_amount > 0 ? course.monthly_amount : (course.course_amount || 0)
-  const yearlyBase = course.yearly_amount > 0 ? course.yearly_amount : (monthlyBase > 0 ? monthlyBase * 10 : 0)
+  // Calculate pricing based on fixed course fee
+  const actualAmount = course.course_amount || course.monthly_amount || 0
+  const durMonths = course.duration_months || 0
+  const durDays = course.duration_days || 0
+  const durationText = [
+    durMonths > 0 ? `${durMonths} Month${durMonths > 1 ? 's' : ''}` : '',
+    durDays > 0 ? `${durDays} Day${durDays > 1 ? 's' : ''}` : ''
+  ].filter(Boolean).join(' ') || 'Full Access'
 
-  const actualAmount = selectedPlan === 'yearly' ? yearlyBase : monthlyBase
   const flashDiscount = course.discount || 0
   const flashDiscountAmount = flashDiscount > 0 ? Math.round((actualAmount * flashDiscount) / 100) : 0
   const priceAfterFlash = Math.max(0, actualAmount - flashDiscountAmount)
@@ -68,14 +72,13 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
 
   const finalPayable = Math.max(0, priceAfterFlash - couponDiscountAmount)
   const quotedLine = serverQuote?.items?.[0]
-  const quoteMatchesSelection = quotedLine?.plan_type === selectedPlan &&
-    (quotedLine?.coupon_code || '') === (couponApplied?.coupon_code || '')
-  const displayedFlashDiscount = quoteMatchesSelection ? quotedLine.course_discount_amount : flashDiscountAmount
-  const displayedCouponDiscount = quoteMatchesSelection ? quotedLine.coupon_discount_amount : couponDiscountAmount
-  const displayedFinalPayable = quoteMatchesSelection ? serverQuote.final_amount : finalPayable
+  const quoteMatchesSelection = (quotedLine?.coupon_code || '') === (couponApplied?.coupon_code || '')
+  const displayedFlashDiscount = quoteMatchesSelection && quotedLine ? quotedLine.course_discount_amount : flashDiscountAmount
+  const displayedCouponDiscount = quoteMatchesSelection && quotedLine ? quotedLine.coupon_discount_amount : couponDiscountAmount
+  const displayedFinalPayable = quoteMatchesSelection && serverQuote ? serverQuote.final_amount : finalPayable
 
-  // Calculated Expiry Date
-  const expiryDays = selectedPlan === 'yearly' ? 365 : 30
+  // Calculated Expiry Days from duration months + days
+  const expiryDays = ((durMonths * 30) + durDays) || 30
   const estimatedExpiryDate = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000)
 
   const handleVerifyCoupon = async (e) => {
@@ -268,55 +271,29 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
               Select your billing plan and preferred payment method to unlock full course access.
             </p>
 
-            {/* Plan Picker: Monthly vs Yearly */}
+            {/* Course Access Info */}
             <div style={{ marginBottom: '18px' }}>
               <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
-                1. SELECT BILLING PLAN:
+                COURSE ENROLLMENT & DURATION:
               </span>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                {/* Monthly Plan Option */}
-                <div
-                  onClick={() => setSelectedPlan('monthly')}
-                  style={{
-                    padding: '14px',
-                    border: selectedPlan === 'monthly' ? '2px solid var(--orange)' : '1px solid var(--line)',
-                    background: selectedPlan === 'monthly' ? '#fff9f4' : '#FFFFFF',
-                    cursor: 'pointer',
-                    borderRadius: '4px',
-                    position: 'relative',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <strong style={{ fontSize: '14px' }}>Monthly Plan</strong>
-                    <span style={{ fontSize: '10px', font: 'var(--mono)', color: 'var(--muted)' }}>30 Days</span>
-                  </div>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: selectedPlan === 'monthly' ? 'var(--orange)' : 'var(--ink)' }}>
-                    ₹{monthlyBase} <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--muted)' }}>/mo</span>
+              <div style={{
+                padding: '14px 16px',
+                border: '2px solid var(--orange)',
+                background: '#fff9f4',
+                borderRadius: '6px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}>
+                <div>
+                  <strong style={{ fontSize: '14px' }}>Full Course Curriculum</strong>
+                  <div style={{ fontSize: '12px', color: 'var(--muted)', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>⏱️ Duration:</span>
+                    <strong style={{ color: 'var(--ink)' }}>{durationText}</strong>
                   </div>
                 </div>
-
-                {/* Yearly Plan Option */}
-                <div
-                  onClick={() => setSelectedPlan('yearly')}
-                  style={{
-                    padding: '14px',
-                    border: selectedPlan === 'yearly' ? '2px solid var(--orange)' : '1px solid var(--line)',
-                    background: selectedPlan === 'yearly' ? '#fff9f4' : '#FFFFFF',
-                    cursor: 'pointer',
-                    borderRadius: '4px',
-                    position: 'relative',
-                  }}
-                >
-                  <span className="badge" style={{ top: '-10px', right: '10px', left: 'auto', background: 'var(--lime)', fontSize: '9px', padding: '3px 8px' }}>
-                    BEST VALUE (12 MOS)
-                  </span>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <strong style={{ fontSize: '14px' }}>Yearly Plan</strong>
-                    <span style={{ fontSize: '10px', font: 'var(--mono)', color: 'var(--muted)' }}>365 Days</span>
-                  </div>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: selectedPlan === 'yearly' ? 'var(--orange)' : 'var(--ink)' }}>
-                    ₹{yearlyBase} <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--muted)' }}>/yr</span>
-                  </div>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--orange)' }}>
+                  ₹{actualAmount}
                 </div>
               </div>
             </div>
@@ -324,7 +301,7 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
             {/* Price breakdown card */}
             <div style={{ border: '1px solid var(--line)', background: '#FFFFFF', padding: '16px', marginBottom: '16px', borderRadius: '4px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
-                <span style={{ color: 'var(--muted)' }}>Selected Plan Fee ({selectedPlan.toUpperCase()})</span>
+                <span style={{ color: 'var(--muted)' }}>Course Fee</span>
                 <span>₹{actualAmount}</span>
               </div>
 
@@ -346,7 +323,7 @@ export default function PaymentModal({ course, initialPlan = 'monthly', onClose,
                 <div>
                   <strong style={{ fontSize: '14px' }}>Total Payable</strong>
                   <span style={{ display: 'block', fontSize: '11px', color: 'var(--muted)' }}>
-                    Access Duration: {selectedPlan === 'yearly' ? '365 Days' : '30 Days'} (until {estimatedExpiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})
+                    Access Duration: {expiryDays} Days (until {estimatedExpiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})
                   </span>
                 </div>
                 <strong style={{ fontSize: '24px', color: 'var(--orange)' }}>{quoteLoading ? 'Updating…' : `₹${displayedFinalPayable}`}</strong>

@@ -21,6 +21,14 @@ const courseSchema = new mongoose.Schema(
             type: Number,
             required: true
         },
+        duration_months: {
+            type: Number,
+            default: 0
+        },
+        duration_days: {
+            type: Number,
+            default: 0
+        },
         monthly_amount: {
             type: Number,
             default: 0
@@ -32,7 +40,7 @@ const courseSchema = new mongoose.Schema(
         pricing_period: {
             type: String,
             enum: ["one_time", "monthly", "yearly", "both"],
-            default: "both"
+            default: "one_time"
         },
         course_type: {
             type: String,

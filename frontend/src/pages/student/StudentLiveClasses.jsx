@@ -3,6 +3,7 @@ import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
 import { openLiveClassWithAttendance } from '../../utils/openLiveClass'
 import Skeleton from '../../components/Skeleton'
+import LiveClassVerificationModal from '../../components/LiveClassVerificationModal'
 
 export default function StudentLiveClasses() {
   const { session } = useAuth()
@@ -10,6 +11,7 @@ export default function StudentLiveClasses() {
   const [loading, setLoading] = useState(true)
   const [selectedPlaybackClass, setSelectedPlaybackClass] = useState(null)
   const [filterTab, setFilterTab] = useState('all') // 'all', 'live', 'recorded'
+  const [verifyingClass, setVerifyingClass] = useState(null)
 
   const getMediaUrl = (url) => {
     if (!url) return ''
@@ -17,17 +19,14 @@ export default function StudentLiveClasses() {
     return `http://localhost:8000/${url.replace(/^\/+/, '')}`
   }
 
-  const handleJoinClass = async (cls) => {
+  const handleJoinClass = (cls) => {
     if (cls.status !== 'live') {
       alert('Attendance check-in is available after the instructor starts the class.')
       return
     }
 
-    try {
-      await openLiveClassWithAttendance(cls.class_id, session.token)
-    } catch (err) {
-      alert(err.message || 'Unable to join the live class right now.')
-    }
+    // Launch in-place security verification modal
+    setVerifyingClass(cls)
   }
 
   const fetchLiveClasses = async () => {
@@ -247,6 +246,16 @@ export default function StudentLiveClasses() {
             )
           })}
         </div>
+      )}
+
+      {/* On-Page Live Security Verification Modal */}
+      {verifyingClass && (
+        <LiveClassVerificationModal
+          classId={verifyingClass.class_id}
+          classTitle={verifyingClass.title}
+          courseTitle={verifyingClass.course_title}
+          onClose={() => setVerifyingClass(null)}
+        />
       )}
 
     </div>

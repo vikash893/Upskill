@@ -21,7 +21,7 @@ getCourseRouter.get(
 
             const allCourses = await Course.find({})
                 .select(
-                    "course_id course_title course_description course_amount monthly_amount yearly_amount pricing_period course_type photo discount discount_time coupons createdAt"
+                    "course_id course_title course_description course_amount duration_months duration_days monthly_amount yearly_amount pricing_period course_type photo discount discount_time coupons createdAt"
                 )
                 .sort({ createdAt: -1 })
                 .lean();
@@ -58,6 +58,8 @@ getCourseRouter.get(
                     course_description: course.course_description,
                     course_type: course.course_type,
                     pricing_period: course.pricing_period || "both",
+                    duration_months: course.duration_months || 0,
+                    duration_days: course.duration_days || 0,
                     photo: course.photo ? course.photo.replace(/\\/g, "/") : null,
                     actual_amount: actualAmount,
                     monthly_amount: monthlyAmount,
@@ -154,6 +156,8 @@ getCourseRouter.get(
                     course_description: course.course_description,
                     course_type: course.course_type,
                     pricing_period: course.pricing_period || "both",
+                    duration_months: course.duration_months || 0,
+                    duration_days: course.duration_days || 0,
                     photo: course.photo ? course.photo.replace(/\\/g, "/") : null,
                     assigned_teachers: assignedTeachers,
                     actual_amount: actualAmount,

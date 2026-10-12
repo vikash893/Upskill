@@ -17,7 +17,7 @@ export default function CourseDetail({ onAuthOpen }) {
   const [isEnrolled, setIsEnrolled] = useState(false)
   const [enrollingFree, setEnrollingFree] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
-  const [selectedPlan, setSelectedPlan] = useState('monthly') // 'monthly' or 'yearly'
+  const [selectedPlan, setSelectedPlan] = useState('custom')
 
   const checkCourseData = async () => {
     setLoading(true)
@@ -71,10 +71,15 @@ export default function CourseDetail({ onAuthOpen }) {
 
   const image = mediaUrl(course.photo)
 
-  // Monthly vs Yearly prices
-  const monthlyPrice = course.final_monthly_amount || course.monthly_amount || course.final_amount || course.actual_amount || 0
-  const yearlyPrice = course.final_yearly_amount || course.yearly_amount || (monthlyPrice > 0 ? monthlyPrice * 10 : 0)
-  const activePlanPrice = selectedPlan === 'yearly' ? yearlyPrice : monthlyPrice
+  // Course price and duration
+  const coursePrice = course.final_amount || course.course_amount || 0
+  const activePlanPrice = coursePrice
+  const durMonths = course.duration_months || 0
+  const durDays = course.duration_days || 0
+  const durationText = [
+    durMonths > 0 ? `${durMonths} Month${durMonths > 1 ? 's' : ''}` : '',
+    durDays > 0 ? `${durDays} Day${durDays > 1 ? 's' : ''}` : ''
+  ].filter(Boolean).join(' ') || 'Full Access'
 
   return (
     <main>
@@ -140,57 +145,36 @@ export default function CourseDetail({ onAuthOpen }) {
               )}
             </div>
 
-            {/* Plan Selector for Paid Courses */}
+            {/* Course Access Details for Paid Courses */}
             {course.course_type === 'paid' && !isEnrolled && (
               <div style={{ background: '#FFFFFF', border: '1px solid var(--line)', padding: '20px', marginBottom: '25px', borderRadius: '4px' }}>
-                <p className="eyebrow" style={{ marginBottom: '12px' }}>CHOOSE YOUR ACCESS PLAN</p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  
-                  {/* Monthly Option */}
-                  <label
-                    onClick={() => setSelectedPlan('monthly')}
-                    style={{
-                      padding: '14px',
-                      border: selectedPlan === 'monthly' ? '2px solid var(--orange)' : '1px solid var(--line)',
-                      background: selectedPlan === 'monthly' ? '#fff9f4' : 'white',
-                      cursor: 'pointer',
-                      borderRadius: '4px',
-                      display: 'block',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ fontSize: '13px' }}>Monthly Plan</strong>
-                      <span style={{ fontSize: '10px', font: 'var(--mono)', color: 'var(--muted)' }}>30 Days</span>
+                <p className="eyebrow" style={{ marginBottom: '12px' }}>COURSE ACCESS & DURATION</p>
+                <div style={{
+                  padding: '16px',
+                  border: '2px solid var(--orange)',
+                  background: '#fff9f4',
+                  borderRadius: '6px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}>
+                  <div>
+                    <strong style={{ fontSize: '15px' }}>Full Course Curriculum</strong>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>⏱️ Access Duration:</span>
+                      <strong style={{ color: 'var(--ink)' }}>{durationText}</strong>
                     </div>
-                    <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink)', margin: '6px 0 0' }}>
-                      ₹{monthlyPrice} <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--muted)' }}>/mo</span>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--orange)' }}>
+                      ₹{coursePrice}
                     </div>
-                  </label>
-
-                  {/* Yearly Option */}
-                  <label
-                    onClick={() => setSelectedPlan('yearly')}
-                    style={{
-                      padding: '14px',
-                      border: selectedPlan === 'yearly' ? '2px solid var(--orange)' : '1px solid var(--line)',
-                      background: selectedPlan === 'yearly' ? '#fff9f4' : 'white',
-                      cursor: 'pointer',
-                      borderRadius: '4px',
-                      display: 'block',
-                      position: 'relative',
-                    }}
-                  >
-                    <span className="badge" style={{ top: '-8px', right: '6px', left: 'auto', background: 'var(--lime)', fontSize: '8px', padding: '2px 6px' }}>
-                      SAVE 17%
-                    </span>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ fontSize: '13px' }}>Yearly Plan</strong>
-                      <span style={{ fontSize: '10px', font: 'var(--mono)', color: 'var(--muted)' }}>365 Days</span>
-                    </div>
-                    <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--orange)', margin: '6px 0 0' }}>
-                      ₹{yearlyPrice} <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--muted)' }}>/yr</span>
-                    </div>
-                  </label>
+                    {course.discount > 0 && (
+                      <span style={{ fontSize: '11px', color: 'var(--muted)', textDecoration: 'line-through' }}>
+                        ₹{course.actual_amount}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -198,11 +182,11 @@ export default function CourseDetail({ onAuthOpen }) {
             {/* Price display row */}
             <div className="price-row" style={{ marginBottom: '20px' }}>
               <strong style={{ fontSize: '34px', color: 'var(--ink)' }}>
-                {course.course_type === 'free' ? 'Free' : `₹${activePlanPrice}`}
+                {course.course_type === 'free' ? 'Free' : `₹${coursePrice}`}
               </strong>
               {course.course_type === 'paid' && (
                 <span style={{ fontSize: '13px', color: 'var(--muted)' }}>
-                  {selectedPlan === 'yearly' ? 'for 1 Year Full Access' : 'for 1 Month Access'}
+                  for {durationText}
                 </span>
               )}
             </div>
@@ -243,7 +227,7 @@ export default function CourseDetail({ onAuthOpen }) {
                       }}
                       style={{ fontSize: '14px', padding: '16px', background: 'var(--orange)' }}
                     >
-                      Pay ₹{activePlanPrice} via QR & Buy {selectedPlan === 'yearly' ? 'Yearly' : 'Monthly'} Plan ↗
+                      Pay ₹{coursePrice} via QR & Buy Course ↗
                     </button>
                   )}
                 </div>

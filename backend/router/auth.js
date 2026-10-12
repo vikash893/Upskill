@@ -2,6 +2,8 @@ const express = require("express");
 const upload = require("../config/multer");
 const {
     userRegister,
+    verifyRegisterOtp,
+    resendRegisterOtp,
     userlogin,
     googleAuth,
     googleMeetAuthStart,
@@ -19,6 +21,30 @@ authRouter.post(
     authRateLimit,
     upload.single("photo"),
     userRegister
+);
+
+authRouter.post(
+    "/register/verify-otp",
+    authRateLimit,
+    verifyRegisterOtp
+);
+
+authRouter.post(
+    "/verify-otp",
+    authRateLimit,
+    verifyRegisterOtp
+);
+
+authRouter.post(
+    "/register/resend-otp",
+    authRateLimit,
+    resendRegisterOtp
+);
+
+authRouter.post(
+    "/resend-otp",
+    authRateLimit,
+    resendRegisterOtp
 );
 
 authRouter.post(

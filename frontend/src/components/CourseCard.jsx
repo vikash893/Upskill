@@ -21,6 +21,13 @@ export default function CourseCard({ course, onAddToCart, isInCart = false, isEn
           <strong>{course.course_type === 'free' ? 'Free' : `₹${course.final_amount}`}</strong>
           {course.discount > 0 && <del>₹{course.actual_amount}</del>}
         </div>
+        {(course.duration_months > 0 || course.duration_days > 0) && (
+          <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '4px 0 0', fontWeight: 600 }}>
+            ⏱️ {course.duration_months > 0 ? `${course.duration_months} Month${course.duration_months > 1 ? 's' : ''}` : ''}
+            {course.duration_months > 0 && course.duration_days > 0 ? ' ' : ''}
+            {course.duration_days > 0 ? `${course.duration_days} Day${course.duration_days > 1 ? 's' : ''}` : ''}
+          </p>
+        )}
         <button className="text-button" type="button" onClick={(e) => { e.stopPropagation(); navigate(`/course/${course.course_id}`) }}>
           View details <span>↗</span>
         </button>

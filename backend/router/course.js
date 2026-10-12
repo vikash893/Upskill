@@ -72,6 +72,8 @@ courseRouter.post(
                 course_title,
                 course_description,
                 course_amount,
+                duration_months,
+                duration_days,
                 monthly_amount,
                 yearly_amount,
                 pricing_period,
@@ -104,57 +106,40 @@ courseRouter.post(
 
 
             // -------------------------------
-            // PRICE CALCULATION
+            // DURATION & PRICE CALCULATION
             // -------------------------------
 
             let amount = Number(course_amount) || 0;
             let mAmount = Number(monthly_amount) || 0;
             let yAmount = Number(yearly_amount) || 0;
-
+            let durMonths = Math.max(0, parseInt(duration_months, 10) || 0);
+            let durDays = Math.max(0, parseInt(duration_days, 10) || 0);
 
             if (course_type === "paid") {
-
-                if (
-                    mAmount <= 0 &&
-                    yAmount <= 0 &&
-                    amount <= 0
-                ) {
+                if (amount <= 0 && mAmount <= 0 && yAmount <= 0) {
                     return res.status(400).json({
-                        error:
-                            "Paid course must have a valid monthly, yearly, or base amount"
+                        error: "Paid course must have a valid course fee"
                     });
                 }
 
-
-                if (
-                    mAmount <= 0 &&
-                    amount > 0
-                ) {
+                if (amount <= 0 && mAmount > 0) {
+                    amount = mAmount;
+                }
+                if (mAmount <= 0 && amount > 0) {
                     mAmount = amount;
                 }
-
-
-                if (
-                    yAmount <= 0 &&
-                    mAmount > 0
-                ) {
+                if (yAmount <= 0 && mAmount > 0) {
                     yAmount = mAmount * 10;
                 }
 
-
-                if (
-                    amount <= 0 &&
-                    mAmount > 0
-                ) {
-                    amount = mAmount;
+                // If no duration set at all for paid course, default to 1 month
+                if (durMonths === 0 && durDays === 0) {
+                    durMonths = 1;
                 }
-
             } else {
-
                 amount = 0;
                 mAmount = 0;
                 yAmount = 0;
-
             }
 
 
@@ -210,6 +195,10 @@ console.log("========================================");
                 course_description,
 
                 course_amount: amount,
+
+                duration_months: durMonths,
+
+                duration_days: durDays,
 
                 monthly_amount: mAmount,
 
@@ -707,6 +696,8 @@ courseRouter.put(
                 course_title,
                 course_description,
                 course_amount,
+                duration_months,
+                duration_days,
                 monthly_amount,
                 yearly_amount,
                 pricing_period,
@@ -771,6 +762,20 @@ courseRouter.put(
                     pricing_period;
             }
 
+            if (duration_months !== undefined) {
+                const dMonths = parseInt(duration_months, 10);
+                if (!isNaN(dMonths) && dMonths >= 0) {
+                    course.duration_months = dMonths;
+                }
+            }
+
+            if (duration_days !== undefined) {
+                const dDays = parseInt(duration_days, 10);
+                if (!isNaN(dDays) && dDays >= 0) {
+                    course.duration_days = dDays;
+                }
+            }
+
 
             // -------------------------------
             // UPDATE AMOUNTS
@@ -789,6 +794,9 @@ courseRouter.put(
                 ) {
                     course.course_amount =
                         amount;
+                    if (course.monthly_amount === undefined || course.monthly_amount <= 0) {
+                        course.monthly_amount = amount;
+                    }
                 }
             }
 
@@ -806,6 +814,9 @@ courseRouter.put(
                 ) {
                     course.monthly_amount =
                         mAmount;
+                    if (!course.course_amount || course.course_amount <= 0) {
+                        course.course_amount = mAmount;
+                    }
                 }
             }
 
