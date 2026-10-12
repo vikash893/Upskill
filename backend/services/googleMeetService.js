@@ -355,14 +355,14 @@ async function createGoogleMeetEvent({
       requestBody: {
         config: {
           accessType: 'RESTRICTED',
-          entryPointAccess: 'ALL',
+          entryPointAccess: 'VIDEO_ONLY',
         },
       },
     });
     space = spaceResponse.data;
   } catch (error) {
     console.warn('GOOGLE_MEET_SPACE_CREATE_NOTICE:', error?.response?.status || error?.code || error?.message);
-    // Continue even if spaces.create fails; Google Calendar conferenceData will create the Meet conference!
+    // Continue even if spaces.create fails; Google Calendar fallback conferenceData will be used
   }
 
   const calendarEvent = {
@@ -388,15 +388,19 @@ async function createGoogleMeetEvent({
     guestsCanSeeOtherGuests: false,
     status: 'confirmed',
     visibility: 'private',
-    conferenceData: {
+  };
+
+  // Only create fallback conference data if spaces.create was unavailable
+  if (!space?.meetingUri) {
+    calendarEvent.conferenceData = {
       createRequest: {
         requestId: `uniskill_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
         conferenceSolutionKey: {
           type: 'hangoutsMeet',
         },
       },
-    },
-  };
+    };
+  }
 
   if (teacherEmail) {
     calendarEvent.organizer = {
@@ -432,9 +436,10 @@ async function createGoogleMeetEvent({
     calendarEventResponse?.data?.conferenceData?.entryPoints?.find((e) => e.entryPointType === 'video')?.uri ||
     null;
 
+  // PRIORITIZE the RESTRICTED space so unenrolled people cannot enter via direct link
   const resolvedMeetUrl =
-    calendarMeetUrl ||
     space?.meetingUri ||
+    calendarMeetUrl ||
     null;
 
   const resolvedSpaceId =

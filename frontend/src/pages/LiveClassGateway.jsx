@@ -193,10 +193,10 @@ export default function LiveClassGateway() {
     window.open(details.meetingUrl, '_blank', 'noopener,noreferrer')
   }
 
-  // Copy link handler
+  // Copy link handler - ALWAYS copies the protected UniSkill gateway link, NEVER raw Google Meet link!
   const handleCopyLink = () => {
-    if (!details.meetingUrl) return
-    navigator.clipboard.writeText(details.meetingUrl)
+    const protectedGatewayLink = `${window.location.origin}/live-class/${encodeURIComponent(classId)}`
+    navigator.clipboard.writeText(protectedGatewayLink)
     setCopied(true)
     setTimeout(() => setCopied(false), 2500)
   }
@@ -536,6 +536,30 @@ export default function LiveClassGateway() {
               </div>
             </div>
 
+            {/* Host Security Advisory (for Teachers) */}
+            {details.isHost && (
+              <div
+                style={{
+                  width: '100%',
+                  backgroundColor: isDarkMode ? 'rgba(37, 99, 235, 0.1)' : '#EFF6FF',
+                  border: `1px solid ${isDarkMode ? 'rgba(37, 99, 235, 0.3)' : '#BFDBFE'}`,
+                  borderRadius: '10px',
+                  padding: '12px 16px',
+                  fontSize: '12px',
+                  color: isDarkMode ? '#93C5FD' : '#1E40AF',
+                  textAlign: 'left',
+                  boxSizing: 'border-box',
+                  marginBottom: '16px',
+                  lineHeight: 1.5,
+                }}
+              >
+                <strong>🛡️ Instructor Security Control:</strong>
+                <div style={{ marginTop: '4px' }}>
+                  This meeting space is <strong>RESTRICTED</strong> to enrolled students only. If anyone attempts to join using an unregistered email, Google Meet will require your approval — <strong>do not admit unknown participants</strong>.
+                </div>
+              </div>
+            )}
+
             {/* Countdown / Redirect Progress */}
             <div style={{ width: '100%', marginBottom: '18px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: theme.textMuted, marginBottom: '6px' }}>
@@ -604,7 +628,7 @@ export default function LiveClassGateway() {
                     cursor: 'pointer',
                   }}
                 >
-                  {copied ? '✓ Link Copied!' : 'Copy Meeting Link 📋'}
+                  {copied ? '✓ UniSkill Link Copied!' : 'Copy Secure Share Link 📋'}
                 </button>
                 <Link
                   to="/dashboard"
