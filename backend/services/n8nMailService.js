@@ -1,3 +1,5 @@
+const https = require('https');
+const http = require('http');
 const nodemailer = require('nodemailer');
 
 /**
@@ -12,33 +14,55 @@ async function sendRegistrationOtp({ email, name, otp }) {
   if (n8nUrl) {
     try {
       console.log(`[n8n] Triggering registration OTP webhook for ${email} -> ${n8nUrl}`);
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-      const response = await fetch(n8nUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event: 'user_registration_otp',
-          type: 'manual_register',
-          email,
-          name: name || email.split('@')[0],
-          otp,
-          expires_in_minutes: 10,
-          timestamp: new Date().toISOString()
-        }),
-        signal: controller.signal
+      const payload = JSON.stringify({
+        event: 'user_registration_otp',
+        type: 'manual_register',
+        email,
+        name: name || email.split('@')[0],
+        otp,
+        expires_in_minutes: 10,
+        timestamp: new Date().toISOString()
       });
 
-      clearTimeout(timeoutId);
+      const parsedUrl = new URL(n8nUrl);
+      const transport = parsedUrl.protocol === 'https:' ? https : http;
 
-      if (response.ok) {
-        console.log(`[n8n] Webhook successfully delivered OTP for ${email}`);
-        return { success: true, provider: 'n8n' };
-      }
-      console.warn(`[n8n] Webhook returned HTTP ${response.status}. Falling back to standard delivery.`);
+      await new Promise((resolve) => {
+        const req = transport.request(parsedUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(payload)
+          },
+          timeout: 8000
+        }, (res) => {
+          res.resume(); // consume response data to free up memory
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            console.log(`[n8n] Webhook successfully delivered OTP for ${email} (status: ${res.statusCode})`);
+          } else {
+            console.warn(`[n8n] Webhook returned HTTP ${res.statusCode}`);
+          }
+          resolve();
+        });
+
+        req.on('error', (err) => {
+          console.warn('[n8n] Webhook request error:', err.message);
+          resolve();
+        });
+
+        req.on('timeout', () => {
+          req.destroy();
+          console.warn('[n8n] Webhook request timed out after 8s');
+          resolve();
+        });
+
+        req.write(payload);
+        req.end();
+      });
+
+      return { success: true, provider: 'n8n' };
     } catch (err) {
-      console.warn('[n8n] Webhook request error:', err.message);
+      console.warn('[n8n] Webhook execution error:', err.message);
     }
   }
 
