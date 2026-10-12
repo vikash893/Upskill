@@ -7,7 +7,6 @@ export default function LiveClassGateway() {
   const { classId } = useParams()
   const { session } = useAuth()
   const [state, setState] = useState({ loading: true, error: '', meetingUrl: '', classTitle: '', courseTitle: '' })
-  const [frameBlocked, setFrameBlocked] = useState(false)
 
   const headers = useMemo(() => ({ Authorization: `Bearer ${session?.token}` }), [session?.token])
 
@@ -49,12 +48,6 @@ export default function LiveClassGateway() {
     }
   }, [classId, headers, session?.role])
 
-  useEffect(() => {
-    if (!state.meetingUrl) return undefined
-    const timer = window.setTimeout(() => setFrameBlocked(true), 3500)
-    return () => window.clearTimeout(timer)
-  }, [state.meetingUrl])
-
   if (state.loading) {
     return (
       <main style={styles.shell}>
@@ -93,25 +86,17 @@ export default function LiveClassGateway() {
         </a>
       </header>
 
-      <section style={styles.frameWrap}>
-        <iframe
-          src={state.meetingUrl}
-          title={state.classTitle}
-          allow="camera; microphone; fullscreen; display-capture"
-          allowFullScreen
-          style={styles.frame}
-        />
-        {frameBlocked && (
-          <div style={styles.overlay}>
-            <h2 style={styles.overlayTitle}>Google Meet may block embedded viewing</h2>
-            <p style={styles.overlayText}>
-              Your UniSkill access check passed. If the Meet area stays blank, use the button below.
-            </p>
-            <a className="primary-button" href={state.meetingUrl} target="_blank" rel="noreferrer" style={styles.action}>
-              Open Meet
-            </a>
-          </div>
-        )}
+      <section style={styles.launchPad}>
+        <div style={styles.launchPanel}>
+          <p className="eyebrow" style={{ margin: 0 }}>ACCESS VERIFIED</p>
+          <h2 style={styles.overlayTitle}>Your UniSkill class access is approved</h2>
+          <p style={styles.overlayText}>
+            Google Meet does not allow itself to be displayed inside another website. Continue from here after UniSkill has verified your login and course enrollment.
+          </p>
+          <a className="primary-button" href={state.meetingUrl} target="_blank" rel="noreferrer" style={styles.action}>
+            Open Google Meet
+          </a>
+        </div>
       </section>
     </main>
   )
@@ -167,26 +152,23 @@ const styles = {
     color: 'var(--muted)',
     fontSize: '12px',
   },
-  frameWrap: {
+  launchPad: {
     position: 'relative',
     minHeight: 0,
-  },
-  frame: {
-    width: '100%',
-    height: '100%',
-    border: 0,
-    background: '#111827',
-  },
-  overlay: {
-    position: 'absolute',
-    inset: 0,
     display: 'grid',
-    placeContent: 'center',
-    justifyItems: 'center',
-    gap: '12px',
+    placeItems: 'center',
     padding: '24px',
+  },
+  launchPanel: {
+    width: 'min(560px, 100%)',
+    display: 'grid',
+    gap: '12px',
+    justifyItems: 'center',
+    padding: '28px',
     textAlign: 'center',
-    background: 'rgba(15, 23, 42, 0.86)',
+    background: 'rgba(255, 255, 255, 0.08)',
+    border: '1px solid rgba(255, 255, 255, 0.14)',
+    borderRadius: '8px',
     color: '#FFFFFF',
   },
   overlayTitle: {

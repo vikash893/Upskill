@@ -112,6 +112,24 @@ async function isTeacherAssigned(teacherEmail, course_id) {
     );
 }
 
+async function canAccessCourseLiveClasses(user, courseId, liveClass = null) {
+    if (!user) return false;
+    if (user.role === "ADMIN") return true;
+
+    if (user.role === "TEACHER") {
+        const ownsClass = liveClass?.teacher_email
+            ? liveClass.teacher_email.toLowerCase() === user.email.toLowerCase()
+            : false;
+        return ownsClass || await isTeacherAssigned(user.email, courseId);
+    }
+
+    if (user.role === "STUDENT") {
+        return isEnrolled(user.email, courseId);
+    }
+
+    return false;
+}
+
 async function markLiveClassEnded(liveClass, endedAt = new Date()) {
     liveClass.status = "ended";
     liveClass.ended_at = endedAt;
@@ -323,11 +341,12 @@ liveClassRouter.get("/live-class/history/:course_id", authMiddleware, async (req
         const userEmail = req.user.email;
         const userRole = req.user.role;
 
-        if (userRole === "STUDENT") {
-            const enrollment = await Enrollment.findOne({ student_email: userEmail, course_id, status: "active" });
-            if (!enrollment) {
-                return res.status(403).json({ error: "You must be enrolled in this course to view class history" });
-            }
+        if (!(await canAccessCourseLiveClasses(req.user, course_id))) {
+            return res.status(403).json({
+                error: userRole === "STUDENT"
+                    ? "You must be enrolled in this course to view class history"
+                    : "You are not allowed to view live classes for this course"
+            });
         }
 
         const rawClasses = await LiveClass.find({ course_id }).sort({ scheduled_time: -1 }).lean();
@@ -359,12 +378,12 @@ liveClassRouter.get("/live-class/course/:course_id", authMiddleware, async (req,
         const userEmail = req.user.email;
         const userRole = req.user.role;
 
-        // Verify enrollment if student
-        if (userRole === "STUDENT") {
-            const enrollment = await Enrollment.findOne({ student_email: userEmail, course_id, status: "active" });
-            if (!enrollment) {
-                return res.status(403).json({ error: "You must be enrolled in this course to view live classes" });
-            }
+        if (!(await canAccessCourseLiveClasses(req.user, course_id))) {
+            return res.status(403).json({
+                error: userRole === "STUDENT"
+                    ? "You must be enrolled in this course to view live classes"
+                    : "You are not allowed to view live classes for this course"
+            });
         }
 
         const includeMeetingUrl = userRole !== "STUDENT";
@@ -570,11 +589,13 @@ liveClassRouter.post("/live-class/join/:class_id", authMiddleware, liveClassRate
         }
 
         // Check enrollment
-        const enrolled = req.user.role === "ADMIN" || req.user.role === "TEACHER"
-            ? true
-            : await isEnrolled(studentEmail, liveClass.course_id);
-        if (!enrolled) {
-            return res.status(403).json({ error: "You are not enrolled in this course" });
+        const allowed = await canAccessCourseLiveClasses(req.user, liveClass.course_id, liveClass);
+        if (!allowed) {
+            return res.status(403).json({
+                error: req.user.role === "STUDENT"
+                    ? "You are not enrolled in this course"
+                    : "You are not allowed to join this live class"
+            });
         }
 
         if (req.user.role === "STUDENT") {
