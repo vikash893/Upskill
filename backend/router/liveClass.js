@@ -30,6 +30,21 @@ const {
 
 const liveClassRouter = express.Router();
 
+function buildPlatformJoinUrl(req, classId) {
+    const frontendBase = process.env.FRONTEND_URL || req.get("origin") || `${req.protocol}://${req.get("host")}`;
+    return `${String(frontendBase).replace(/\/$/, "")}/live-class/${encodeURIComponent(classId)}`;
+}
+
+function exposeLiveClass(liveClass, req, { includeMeetingUrl = false } = {}) {
+    const plain = typeof liveClass.toObject === "function" ? liveClass.toObject() : { ...liveClass };
+    plain.platform_join_url = buildPlatformJoinUrl(req, plain.class_id);
+    plain.join_url = plain.platform_join_url;
+    if (!includeMeetingUrl) {
+        delete plain.meeting_url;
+    }
+    return plain;
+}
+
 function buildAttendancePipeline(classId, courseId, { skip, limit } = {}) {
     const pipeline = [
         { $match: { course_id: courseId, status: "active" } },
@@ -198,7 +213,7 @@ liveClassRouter.post(
                     : googleMeetEnabled
                         ? "Live class created but Google Meet scheduling is still pending. Please verify your Google Workspace config."
                         : "Live class created successfully. Configure Google Meet credentials to generate a Meet link.",
-                liveClass: newClass,
+                liveClass: exposeLiveClass(newClass, req, { includeMeetingUrl: true }),
                 meet: meetingResult
             });
         } catch (error) {
@@ -276,8 +291,10 @@ liveClassRouter.post(
 
             return res.status(200).json({
                 message: "Google Meet session generated successfully.",
+                join_url: buildPlatformJoinUrl(req, liveClass.class_id),
+                platform_join_url: buildPlatformJoinUrl(req, liveClass.class_id),
                 meeting_url: liveClass.meeting_url,
-                liveClass,
+                liveClass: exposeLiveClass(liveClass, req, { includeMeetingUrl: true }),
                 meet: meetingResult,
             });
         } catch (error) {
@@ -313,7 +330,10 @@ liveClassRouter.get("/live-class/history/:course_id", authMiddleware, async (req
             }
         }
 
-        const classes = await LiveClass.find({ course_id }).sort({ scheduled_time: -1 }).lean();
+        const rawClasses = await LiveClass.find({ course_id }).sort({ scheduled_time: -1 }).lean();
+        const classes = rawClasses.map((liveClass) =>
+            exposeLiveClass(liveClass, req, { includeMeetingUrl: userRole !== "STUDENT" })
+        );
         const upcoming = classes.filter((item) => item.status === "upcoming");
         const liveNow = classes.filter((item) => item.status === "live");
         const completed = classes.filter((item) => item.status === "ended");
@@ -347,7 +367,9 @@ liveClassRouter.get("/live-class/course/:course_id", authMiddleware, async (req,
             }
         }
 
-        const liveClasses = await LiveClass.find({ course_id }).sort({ createdAt: -1 }).lean();
+        const includeMeetingUrl = userRole !== "STUDENT";
+        const liveClasses = (await LiveClass.find({ course_id }).sort({ createdAt: -1 }).lean())
+            .map((liveClass) => exposeLiveClass(liveClass, req, { includeMeetingUrl }));
 
         if (userRole === "STUDENT" && liveClasses.length > 0) {
             const attendanceRecords = await LiveAttendance.find({
@@ -555,13 +577,16 @@ liveClassRouter.post("/live-class/join/:class_id", authMiddleware, liveClassRate
             return res.status(403).json({ error: "You are not enrolled in this course" });
         }
 
-        const studentName = await getStudentDisplayName(studentEmail, req.user.name);
-        await joinLiveClass({ classId: class_id, studentEmail, studentName });
+        if (req.user.role === "STUDENT") {
+            const studentName = await getStudentDisplayName(studentEmail, req.user.name);
+            await joinLiveClass({ classId: class_id, studentEmail, studentName });
+        }
 
         return res.status(200).json({
             message: "Joined live class successfully",
             join_url: liveClass.meeting_url,
             meeting_url: liveClass.meeting_url,
+            platform_join_url: buildPlatformJoinUrl(req, class_id),
             room_name: liveClass.room_name,
             class_title: liveClass.title,
             course_title: liveClass.course_title,

@@ -3,7 +3,7 @@ import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
 import AttendanceModal from '../../components/AttendanceModal'
 import Skeleton from '../../components/Skeleton'
-import { generateAndOpenLiveClass } from '../../utils/openLiveClass'
+import { generateAndOpenLiveClass, getPlatformLiveClassUrl } from '../../utils/openLiveClass'
 
 export default function TeacherLiveStudio() {
   const { session } = useAuth()
@@ -143,18 +143,12 @@ export default function TeacherLiveStudio() {
   }
 
   const handleOpenClassroom = async (cls) => {
-    const openMeeting = (meetingUrl) => {
-      if (!meetingUrl) {
-        alert('This class does not have a live session URL yet. Please generate it first.')
-        return
-      }
-
-      window.open(meetingUrl, '_blank', 'noopener,noreferrer')
+    const openClass = () => {
+      window.open(cls.platform_join_url || cls.join_url || getPlatformLiveClassUrl(cls.class_id), '_blank', 'noopener,noreferrer')
     }
 
-    const meetingUrl = cls.meeting_url || cls.join_url
-    if (meetingUrl) {
-      openMeeting(meetingUrl)
+    if (cls.meeting_url || cls.platform_join_url || cls.join_url) {
+      openClass()
       return
     }
 
@@ -534,7 +528,7 @@ export default function TeacherLiveStudio() {
                       style={{ background: isLive ? 'var(--orange)' : 'var(--ink)', padding: '8px 14px', fontSize: '11px' }}
                       onClick={() => handleOpenClassroom(cls)}
                     >
-                      {cls.meeting_url || cls.join_url ? 'Open Google Meet ↗' : 'Open Class ↗'}
+                      {cls.meeting_url || cls.platform_join_url || cls.join_url ? 'Open Secure Class ↗' : 'Open Class ↗'}
                     </button>
                   )}
 

@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 
 export default function LiveClassModal({ liveClass, onClose }) {
-  const meetingUrl = liveClass?.meeting_url || liveClass?.join_url || null;
+  const meetingUrl = liveClass?.platform_join_url || liveClass?.join_url || null;
 
   useEffect(() => {
     if (!meetingUrl) {
@@ -40,8 +40,8 @@ export default function LiveClassModal({ liveClass, onClose }) {
         <h3 style={{ margin: '12px 0 8px', fontSize: '24px' }}>Opening your class</h3>
         <p style={{ color: 'var(--muted)', margin: '0 0 18px' }}>
           {meetingUrl
-            ? 'The LMS is opening your secure Google Meet session in a new tab.'
-            : 'This class does not have a Google Meet link yet. Please wait for the instructor to publish it.'}
+            ? 'The LMS is opening your secure live class page in a new tab.'
+            : 'This class does not have a live class link yet. Please wait for the instructor to publish it.'}
         </p>
         <button className="primary-button" onClick={onClose}>Close</button>
       </div>

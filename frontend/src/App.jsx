@@ -12,6 +12,7 @@ import Auth from './pages/Auth'
 // Application Pages
 import CourseDetail from './pages/CourseDetail'
 import LearningRoom from './pages/LearningRoom'
+import LiveClassGateway from './pages/LiveClassGateway'
 import ScalableLiveClassPage from './pages/ScalableLiveClassPage'
 import Profile from './pages/Profile'
 import Dashboard from './pages/Dashboard'
@@ -113,6 +114,15 @@ function App() {
         element={
           <ProtectedRoute>
             <LearningRoom />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/live-class/:classId"
+        element={
+          <ProtectedRoute>
+            <LiveClassGateway />
           </ProtectedRoute>
         }
       />

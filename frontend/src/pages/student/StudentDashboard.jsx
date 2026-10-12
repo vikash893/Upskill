@@ -240,7 +240,7 @@ export default function StudentDashboard() {
             }}
             onClick={() => handleOpenLiveClass(upcomingLiveClass)}
           >
-            {upcomingLiveClass.status === 'live' ? 'Join Google Meet ↗' : 'View Class Info ↗'}
+            {upcomingLiveClass.status === 'live' ? 'Join Secure Class ↗' : 'View Class Info ↗'}
           </button>
         </div>
       )}

@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { mediaUrl } from '../utils/mediaUrl'
 import AttendanceModal from '../components/AttendanceModal'
 import Skeleton from '../components/Skeleton'
-import { generateAndOpenLiveClass, openLiveClassWithAttendance } from '../utils/openLiveClass'
+import { generateAndOpenLiveClass, getPlatformLiveClassUrl, openLiveClassWithAttendance } from '../utils/openLiveClass'
 
 export default function LearningRoom() {
   const { courseId } = useParams()
@@ -89,18 +89,12 @@ export default function LearningRoom() {
       return
     }
 
-    const openMeeting = (meetingUrl) => {
-      if (!meetingUrl) {
-        alert('This class does not have a live session URL yet. Please generate it first.')
-        return
-      }
-
-      window.open(meetingUrl, '_blank', 'noopener,noreferrer')
+    const openClass = () => {
+      window.open(liveClass.platform_join_url || liveClass.join_url || getPlatformLiveClassUrl(liveClass.class_id), '_blank', 'noopener,noreferrer')
     }
 
-    const meetingUrl = liveClass?.meeting_url || liveClass?.join_url
-    if (meetingUrl) {
-      openMeeting(meetingUrl)
+    if (liveClass?.meeting_url || liveClass?.platform_join_url || liveClass?.join_url) {
+      openClass()
       return
     }
 
@@ -1166,7 +1160,7 @@ export default function LearningRoom() {
                             style={{ background: isLiveNow ? 'var(--orange)' : 'var(--ink)', padding: '10px 20px', fontSize: '12px' }}
                             onClick={() => handleOpenLiveClass(cls)}
                           >
-                            {cls.meeting_url || cls.join_url ? 'Open Google Meet ↗' : 'Open Class ↗'}
+                            {cls.meeting_url || cls.platform_join_url || cls.join_url ? 'Open Secure Class ↗' : 'Open Class ↗'}
                           </button>
                         )}
 

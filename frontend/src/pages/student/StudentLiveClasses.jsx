@@ -239,7 +239,7 @@ export default function StudentLiveClasses() {
                       }}
                       onClick={() => handleJoinClass(cls)}
                     >
-                      {isLiveNow ? 'Join Google Meet ↗' : 'Waiting for instructor ↗'}
+                      {isLiveNow ? 'Join Secure Class ↗' : 'Waiting for instructor ↗'}
                     </button>
                   )}
                 </div>

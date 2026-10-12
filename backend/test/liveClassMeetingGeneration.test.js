@@ -8,4 +8,5 @@ test('live class router exposes a route to generate a missing Google Meet sessio
     .map((layer) => Object.keys(layer.route.methods).filter(Boolean).join(':') + ' ' + layer.route.path);
 
   assert.ok(routePaths.includes('post /live-class/:class_id/generate-meeting'));
+  assert.ok(routePaths.includes('post /live-class/join/:class_id'));
 });
