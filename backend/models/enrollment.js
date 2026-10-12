@@ -30,8 +30,8 @@ const enrollmentSchema = new mongoose.Schema(
         },
         plan_type: {
             type: String,
-            enum: ["monthly", "yearly", "one_time", "lifetime", "free"],
-            default: "monthly"
+            enum: ["monthly", "yearly", "custom", "one_time", "lifetime", "free"],
+            default: "custom"
         },
         plan_expiry: {
             type: Date,

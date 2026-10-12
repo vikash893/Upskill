@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const paymentOrderItemSchema = new mongoose.Schema({
     course_id: { type: String, required: true },
     course_title: { type: String, required: true },
-    plan_type: { type: String, enum: ['monthly', 'yearly'], required: true },
+    plan_type: { type: String, enum: ['monthly', 'yearly', 'custom', 'one_time', 'lifetime', 'free'], default: 'custom' },
     actual_amount: { type: Number, required: true },
     course_discount_percent: { type: Number, default: 0 },
     course_discount_amount: { type: Number, default: 0 },
