@@ -24,6 +24,7 @@
     "kafkajs": "^2.2.4",
     "mongoose": "^9.10.2",
     "multer": "^2.4.0",
+    "nodemailer": "^10.1.0",
     "pdfkit": "^0.20.2",
     "rate-limiter-flexible": "^11.2.1",
     "razorpay": "^2.9.8",
