@@ -41,7 +41,7 @@ export default function HeroSection() {
           </div>
 
           <img
-            src="https://images.unsplash.com/photo-1531123897727-8f129e1688ce?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
+            src="https://res.cloudinary.com/q058panr/image/upload/v1791824290/uniskill/teachers/nisapovadzyepdgnkpho.jpg"
             alt="Student learning on UniSkill"
           />
 
