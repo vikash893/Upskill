@@ -120,11 +120,7 @@ function App() {
 
       <Route
         path="/live-class/:classId"
-        element={
-          <ProtectedRoute>
-            <LiveClassGateway />
-          </ProtectedRoute>
-        }
+        element={<LiveClassGateway />}
       />
 
       <Route

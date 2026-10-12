@@ -587,32 +587,87 @@ liveClassRouter.patch(
 // ======================================================
 // STUDENT JOIN LIVE CLASS (TRACK ENTRY ATTENDANCE)
 // ======================================================
+// ======================================================
+// PUBLIC LIVE CLASS METADATA (NO MEETING URL EXPOSED)
+// ======================================================
+liveClassRouter.get("/live-class/:class_id/meta", async (req, res) => {
+    try {
+        const { class_id } = req.params;
+        const liveClass = await getLiveClassSnapshot(class_id);
+        if (!liveClass) {
+            return res.status(404).json({ error: "Live class not found" });
+        }
+        return res.status(200).json({
+            class_id: liveClass.class_id,
+            title: liveClass.title,
+            topic: liveClass.topic || "",
+            course_id: liveClass.course_id,
+            course_title: liveClass.course_title,
+            teacher_name: liveClass.teacher_name,
+            status: liveClass.status,
+            scheduled_time: liveClass.scheduled_time,
+            duration_minutes: liveClass.duration_minutes || 60,
+        });
+    } catch (error) {
+        return res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// ======================================================
+// STUDENT/TEACHER JOIN LIVE CLASS (SECURITY VERIFICATION)
+// ======================================================
 liveClassRouter.post("/live-class/join/:class_id", authMiddleware, liveClassRateLimit, async (req, res) => {
     try {
         const { class_id } = req.params;
-        const studentEmail = req.user.email;
+        const userEmail = req.user.email;
 
         const liveClass = await getLiveClassSnapshot(class_id);
         if (!liveClass) {
             return res.status(404).json({ error: "Live class not found" });
         }
 
-        if (req.user.role === "STUDENT" && liveClass.status !== "live") {
-            return res.status(409).json({ error: "Attendance is recorded only while the instructor has started this class." });
-        }
+        const isHost = req.user.role === "ADMIN" || (req.user.role === "TEACHER" && String(liveClass.teacher_email || '').toLowerCase() === String(userEmail || '').toLowerCase());
 
-        if (!liveClass.meeting_url) {
-            return res.status(409).json({ error: "The instructor has not generated a Google Meet link for this class yet." });
-        }
-
-        // Check enrollment
+        // Check enrollment or teacher authorization
         const allowed = await canAccessCourseLiveClasses(req.user, liveClass.course_id, liveClass);
         if (!allowed) {
             return res.status(403).json({
                 error: req.user.role === "STUDENT"
                     ? "You are not enrolled in this course"
-                    : "You are not allowed to join this live class"
+                    : "You are not authorized to access this live class",
+                code: "UNAUTHORIZED_COURSE_ACCESS",
+                checked_email: userEmail,
+                course_title: liveClass.course_title
             });
+        }
+
+        if (req.user.role === "STUDENT" && liveClass.status !== "live") {
+            return res.status(409).json({
+                error: "This live class has not started yet. Please wait for your instructor to begin the session.",
+                code: "CLASS_NOT_STARTED",
+                checked_email: userEmail,
+                class_title: liveClass.title
+            });
+        }
+
+        if (!liveClass.meeting_url) {
+            return res.status(409).json({
+                error: "The instructor has not generated a Google Meet session for this class yet.",
+                code: "NO_MEETING_LINK",
+                checked_email: userEmail
+            });
+        }
+
+        // If teacher/host joins an upcoming class, auto-start it to 'live'
+        if (isHost && liveClass.status === "upcoming") {
+            const classDoc = await LiveClass.findOne({ class_id });
+            if (classDoc && classDoc.status === "upcoming") {
+                classDoc.status = "live";
+                classDoc.started_at = classDoc.started_at || new Date();
+                await classDoc.save();
+                await invalidateLiveClassSnapshot(class_id);
+                liveClass.status = "live";
+            }
         }
 
         if (req.user.role === "STUDENT") {
@@ -620,24 +675,40 @@ liveClassRouter.post("/live-class/join/:class_id", authMiddleware, liveClassRate
                 const teacher = await Teacher.findOne({ email: liveClass.teacher_email });
                 await ensureGoogleMeetEventAttendees({
                     calendarEventId: liveClass.calendar_event_id,
-                    attendeeEmails: [studentEmail],
+                    attendeeEmails: [userEmail],
                 }, teacher);
             }
-            const studentName = await getStudentDisplayName(studentEmail, req.user.name);
-            await joinLiveClass({ classId: class_id, studentEmail, studentName });
+            const studentName = await getStudentDisplayName(userEmail, req.user.name);
+            await joinLiveClass({ classId: class_id, studentEmail: userEmail, studentName });
+        }
+
+        // Ensure ?authuser is set to the user's UniSkill email so Google Meet switches to the right account
+        let targetMeetUrl = liveClass.meeting_url;
+        if (targetMeetUrl && targetMeetUrl.includes("meet.google.com")) {
+            try {
+                const urlObj = new URL(targetMeetUrl);
+                urlObj.searchParams.set("authuser", userEmail);
+                targetMeetUrl = urlObj.toString();
+            } catch {}
         }
 
         return res.status(200).json({
-            message: "Joined live class successfully",
-            join_url: liveClass.meeting_url,
-            meeting_url: liveClass.meeting_url,
+            message: "Live class access verified and approved",
+            join_url: targetMeetUrl,
+            meeting_url: targetMeetUrl,
+            google_meet_url: targetMeetUrl,
             platform_join_url: buildPlatformJoinUrl(req, class_id),
             access_granted: true,
-            checked_email: studentEmail,
+            checked_email: userEmail,
+            student_name: req.user.name,
+            role: req.user.role,
+            is_host: isHost,
             room_name: liveClass.room_name,
             class_title: liveClass.title,
             course_title: liveClass.course_title,
-            meeting_provider: liveClass.meeting_provider || liveClass.stream_provider || "legacy-webrtc"
+            teacher_name: liveClass.teacher_name,
+            teacher_email: liveClass.teacher_email,
+            meeting_provider: liveClass.meeting_provider || liveClass.stream_provider || "google-meet"
         });
     } catch (error) {
         console.log("JOIN LIVE CLASS ERROR:", error);

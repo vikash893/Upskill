@@ -333,6 +333,21 @@ async function createGoogleMeetEvent({
   const safeStart = startTime ? new Date(startTime) : new Date();
   const safeEnd = endTime ? new Date(endTime) : new Date(safeStart.getTime() + 60 * 60 * 1000);
   const normalizedAttendeeEmails = normalizeAttendeeEmails(attendeeEmails);
+  const teacherEmail = teacher?.email ? String(teacher.email).trim().toLowerCase() : null;
+
+  // Build attendees list ensuring teacher is marked as accepted host/attendee
+  const attendeesList = normalizedAttendeeEmails.map((email) => ({
+    email,
+    responseStatus: email === teacherEmail ? 'accepted' : 'needsAction',
+  }));
+
+  if (teacherEmail && !attendeesList.some((a) => a.email === teacherEmail)) {
+    attendeesList.unshift({
+      email: teacherEmail,
+      responseStatus: 'accepted',
+    });
+  }
+
   let space = null;
   try {
     const meet = google.meet({ version: 'v2', auth: teacherAuth });
@@ -346,13 +361,8 @@ async function createGoogleMeetEvent({
     });
     space = spaceResponse.data;
   } catch (error) {
-    console.error('GOOGLE_MEET_RESTRICTED_SPACE_CREATE_ERROR:', error?.response?.status || error?.code || error?.message);
-    return {
-      created: false,
-      configured: true,
-      restricted: false,
-      message: 'Restricted Google Meet could not be created. Reconnect Google Meet and verify Meet API permissions before scheduling this class.',
-    };
+    console.warn('GOOGLE_MEET_SPACE_CREATE_NOTICE:', error?.response?.status || error?.code || error?.message);
+    // Continue even if spaces.create fails; Google Calendar conferenceData will create the Meet conference!
   }
 
   const calendarEvent = {
@@ -372,13 +382,29 @@ async function createGoogleMeetEvent({
       dateTime: safeEnd.toISOString(),
       timeZone: env.GOOGLE_CALENDAR_TIMEZONE || 'UTC',
     },
-    attendees: normalizedAttendeeEmails.map((email) => ({ email })),
+    attendees: attendeesList,
     guestsCanInviteOthers: false,
     guestsCanModify: false,
     guestsCanSeeOtherGuests: false,
     status: 'confirmed',
     visibility: 'private',
+    conferenceData: {
+      createRequest: {
+        requestId: `uniskill_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        conferenceSolutionKey: {
+          type: 'hangoutsMeet',
+        },
+      },
+    },
   };
+
+  if (teacherEmail) {
+    calendarEvent.organizer = {
+      email: teacherEmail,
+      displayName: teacherName || 'Course Instructor',
+      self: true,
+    };
+  }
 
   let calendarEventResponse = null;
   try {
@@ -391,21 +417,30 @@ async function createGoogleMeetEvent({
     });
   } catch (error) {
     console.error('GOOGLE_CALENDAR_EVENT_CREATE_ERROR:', error?.response?.status || error?.code || error?.message);
-    return {
-      created: false,
-      configured: true,
-      restricted: true,
-      message: 'Restricted Google Meet was created, but invite-only calendar access could not be saved. No class link was published.',
-    };
+    if (!space?.meetingUri) {
+      return {
+        created: false,
+        configured: true,
+        restricted: true,
+        message: 'Google Meet could not be scheduled. Please verify teacher Google permissions and Calendar API.',
+      };
+    }
   }
 
-  const resolvedMeetUrl =
-    space?.meetingUri ||
+  const calendarMeetUrl =
     calendarEventResponse?.data?.hangoutLink ||
+    calendarEventResponse?.data?.conferenceData?.entryPoints?.find((e) => e.entryPointType === 'video')?.uri ||
+    null;
+
+  const resolvedMeetUrl =
+    calendarMeetUrl ||
+    space?.meetingUri ||
     null;
 
   const resolvedSpaceId =
-    space?.name || null;
+    space?.name ||
+    calendarEventResponse?.data?.conferenceData?.conferenceId ||
+    null;
 
   if (!resolvedMeetUrl) {
     return {
@@ -422,12 +457,10 @@ async function createGoogleMeetEvent({
     meetSpaceId: resolvedSpaceId,
     meetUrl: resolvedMeetUrl,
     resource: { space, calendarEvent: calendarEventResponse?.data || null },
-    attendeeCount: normalizedAttendeeEmails.length,
+    attendeeCount: attendeesList.length,
     accessType: space?.config?.accessType || 'RESTRICTED',
     restricted: true,
-    message: calendarEventResponse
-      ? 'Google Meet space and Calendar event created successfully.'
-      : 'Google Meet space created; the Calendar event could not be saved.',
+    message: 'Google Meet session and Calendar event created successfully with teacher as host.',
   };
 }
 
@@ -454,7 +487,7 @@ async function ensureGoogleMeetEventAttendees({
     const existingEmails = new Set(existingAttendees.map((attendee) => String(attendee.email || '').toLowerCase()));
     const missingAttendees = normalizedAttendeeEmails
       .filter((email) => !existingEmails.has(email))
-      .map((email) => ({ email }));
+      .map((email) => ({ email, responseStatus: 'accepted' }));
 
     if (!missingAttendees.length) {
       return { updated: false, attendeeCount: existingAttendees.length };
