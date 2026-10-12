@@ -76,11 +76,15 @@ const userRegister = async (req, res) => {
         }, 600);
 
         // Dispatch OTP via n8n pipeline or fallback
-        await sendRegistrationOtp({
-            email: normalizedEmail,
-            name,
-            otp
-        });
+        try {
+            await sendRegistrationOtp({
+                email: normalizedEmail,
+                name,
+                otp
+            });
+        } catch (mailErr) {
+            console.error("OTP DELIVERY ERROR:", mailErr.message);
+        }
 
         return res.status(200).json({
             message: "Verification code sent to your email.",
@@ -89,9 +93,9 @@ const userRegister = async (req, res) => {
         });
 
     } catch (error) {
-        console.log("REGISTER ERROR:", error);
+        console.error("REGISTER ERROR:", error);
         return res.status(500).json({
-            error: "Internal server error"
+            error: error.message || "Internal server error"
         });
     }
 };
