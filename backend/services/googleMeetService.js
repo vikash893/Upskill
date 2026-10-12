@@ -51,6 +51,8 @@ function buildGoogleAuth(env = process.env) {
       scopes: [
         'https://www.googleapis.com/auth/calendar',
         'https://www.googleapis.com/auth/calendar.events',
+        'https://www.googleapis.com/auth/meetings.space.created',
+        'https://www.googleapis.com/auth/meetings.space.settings',
       ],
     });
   }
@@ -100,6 +102,15 @@ function buildTeacherGoogleAuth(teacher, env = process.env) {
 
   auth.setCredentials(credentials);
   return auth;
+}
+
+function normalizeAttendeeEmails(attendeeEmails = []) {
+  return [...new Set(
+    attendeeEmails
+      .filter(Boolean)
+      .map((email) => String(email).trim().toLowerCase())
+      .filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+  )];
 }
 
 function getMeetSpaceResourceName(meetSpaceId, meetingUrl) {
@@ -321,13 +332,27 @@ async function createGoogleMeetEvent({
 
   const safeStart = startTime ? new Date(startTime) : new Date();
   const safeEnd = endTime ? new Date(endTime) : new Date(safeStart.getTime() + 60 * 60 * 1000);
+  const normalizedAttendeeEmails = normalizeAttendeeEmails(attendeeEmails);
   let space = null;
   try {
     const meet = google.meet({ version: 'v2', auth: teacherAuth });
-    const spaceResponse = await meet.spaces.create({ requestBody: {} });
+    const spaceResponse = await meet.spaces.create({
+      requestBody: {
+        config: {
+          accessType: 'RESTRICTED',
+          entryPointAccess: 'ALL',
+        },
+      },
+    });
     space = spaceResponse.data;
   } catch (error) {
-    console.warn('GOOGLE_MEET_SPACE_CREATE_FALLBACK: Meet API spaces.create failed, falling back to Calendar conferenceData.', error?.response?.status || error?.code || error?.message);
+    console.error('GOOGLE_MEET_RESTRICTED_SPACE_CREATE_ERROR:', error?.response?.status || error?.code || error?.message);
+    return {
+      created: false,
+      configured: true,
+      restricted: false,
+      message: 'Restricted Google Meet could not be created. Reconnect Google Meet and verify Meet API permissions before scheduling this class.',
+    };
   }
 
   const calendarEvent = {
@@ -347,19 +372,13 @@ async function createGoogleMeetEvent({
       dateTime: safeEnd.toISOString(),
       timeZone: env.GOOGLE_CALENDAR_TIMEZONE || 'UTC',
     },
-    attendees: attendeeEmails.filter(Boolean).map((email) => ({ email })),
+    attendees: normalizedAttendeeEmails.map((email) => ({ email })),
+    guestsCanInviteOthers: false,
+    guestsCanModify: false,
+    guestsCanSeeOtherGuests: false,
     status: 'confirmed',
     visibility: 'private',
   };
-
-  if (!space?.meetingUri) {
-    calendarEvent.conferenceData = {
-      createRequest: {
-        requestId: `meet_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-        conferenceSolutionKey: { type: 'hangoutsMeet' },
-      },
-    };
-  }
 
   let calendarEventResponse = null;
   try {
@@ -368,23 +387,25 @@ async function createGoogleMeetEvent({
       calendarId,
       conferenceDataVersion: 1,
       resource: calendarEvent,
-      sendUpdates: 'externalOnly',
+      sendUpdates: env.GOOGLE_CALENDAR_SEND_UPDATES || 'all',
     });
   } catch (error) {
     console.error('GOOGLE_CALENDAR_EVENT_CREATE_ERROR:', error?.response?.status || error?.code || error?.message);
+    return {
+      created: false,
+      configured: true,
+      restricted: true,
+      message: 'Restricted Google Meet was created, but invite-only calendar access could not be saved. No class link was published.',
+    };
   }
 
   const resolvedMeetUrl =
     space?.meetingUri ||
     calendarEventResponse?.data?.hangoutLink ||
-    calendarEventResponse?.data?.conferenceData?.entryPoints?.find((e) => e.entryPointType === 'video')?.uri ||
     null;
 
   const resolvedSpaceId =
-    space?.name ||
-    (calendarEventResponse?.data?.conferenceData?.conferenceId
-      ? `spaces/${calendarEventResponse.data.conferenceData.conferenceId}`
-      : null);
+    space?.name || null;
 
   if (!resolvedMeetUrl) {
     return {
@@ -401,10 +422,62 @@ async function createGoogleMeetEvent({
     meetSpaceId: resolvedSpaceId,
     meetUrl: resolvedMeetUrl,
     resource: { space, calendarEvent: calendarEventResponse?.data || null },
+    attendeeCount: normalizedAttendeeEmails.length,
+    accessType: space?.config?.accessType || 'RESTRICTED',
+    restricted: true,
     message: calendarEventResponse
       ? 'Google Meet space and Calendar event created successfully.'
       : 'Google Meet space created; the Calendar event could not be saved.',
   };
+}
+
+async function ensureGoogleMeetEventAttendees({
+  calendarEventId,
+  attendeeEmails = [],
+  calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary',
+}, teacher = null) {
+  const env = process.env;
+  const auth = buildTeacherGoogleAuth(teacher, env);
+  const normalizedAttendeeEmails = normalizeAttendeeEmails(attendeeEmails);
+
+  if (!calendarEventId || !auth || normalizedAttendeeEmails.length === 0) {
+    return { updated: false, attendeeCount: 0 };
+  }
+
+  try {
+    const calendar = google.calendar({ version: 'v3', auth });
+    const eventResult = await calendar.events.get({
+      calendarId,
+      eventId: calendarEventId,
+    });
+    const existingAttendees = eventResult.data.attendees || [];
+    const existingEmails = new Set(existingAttendees.map((attendee) => String(attendee.email || '').toLowerCase()));
+    const missingAttendees = normalizedAttendeeEmails
+      .filter((email) => !existingEmails.has(email))
+      .map((email) => ({ email }));
+
+    if (!missingAttendees.length) {
+      return { updated: false, attendeeCount: existingAttendees.length };
+    }
+
+    const updatedAttendees = [...existingAttendees, ...missingAttendees];
+    await calendar.events.patch({
+      calendarId,
+      eventId: calendarEventId,
+      resource: {
+        attendees: updatedAttendees,
+        guestsCanInviteOthers: false,
+        guestsCanModify: false,
+        guestsCanSeeOtherGuests: false,
+      },
+      sendUpdates: env.GOOGLE_CALENDAR_SEND_UPDATES || 'all',
+    });
+
+    return { updated: true, attendeeCount: updatedAttendees.length };
+  } catch (error) {
+    console.warn('GOOGLE_CALENDAR_ATTENDEE_SYNC_ERROR:', error?.response?.status || error?.code || error?.message);
+    return { updated: false, attendeeCount: 0, error: error?.message || 'Unable to sync Meet attendee list.' };
+  }
 }
 
 module.exports = {
@@ -416,5 +489,6 @@ module.exports = {
   getGoogleMeetConferenceStatus,
   endGoogleMeetConference,
   createGoogleMeetEvent,
+  ensureGoogleMeetEventAttendees,
   syncGoogleMeetRecordingMetadata,
 };

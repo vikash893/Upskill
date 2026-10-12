@@ -331,6 +331,7 @@ const googleMeetAuthStart = async (req, res) => {
             scope: [
                 "https://www.googleapis.com/auth/calendar.events",
                 "https://www.googleapis.com/auth/meetings.space.created",
+                "https://www.googleapis.com/auth/meetings.space.settings",
                 "openid",
                 "email"
             ],
@@ -406,6 +407,7 @@ const googleMeetAuthCallback = async (req, res) => {
                                 grantedScopes.has("https://www.googleapis.com/auth/calendar");
 
         const hasMeetScope = grantedScopes.has("https://www.googleapis.com/auth/meetings.space.created") || 
+                             grantedScopes.has("https://www.googleapis.com/auth/meetings.space.settings") ||
                              grantedScopes.has("https://www.googleapis.com/auth/meetings") ||
                              hasCalendarScope;
 

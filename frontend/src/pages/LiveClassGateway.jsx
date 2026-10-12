@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext'
 export default function LiveClassGateway() {
   const { classId } = useParams()
   const { session } = useAuth()
-  const [state, setState] = useState({ loading: true, error: '', meetingUrl: '', classTitle: '', courseTitle: '' })
+  const [state, setState] = useState({ loading: true, error: '', meetingUrl: '', classTitle: '', courseTitle: '', checkedEmail: '' })
 
   const headers = useMemo(() => ({ Authorization: `Bearer ${session?.token}` }), [session?.token])
 
@@ -14,7 +14,7 @@ export default function LiveClassGateway() {
     let cancelled = false
 
     async function joinClass() {
-      setState({ loading: true, error: '', meetingUrl: '', classTitle: '', courseTitle: '' })
+      setState({ loading: true, error: '', meetingUrl: '', classTitle: '', courseTitle: '', checkedEmail: '' })
       try {
         const result = await request(`/live-class/join/${classId}`, {
           method: 'POST',
@@ -28,10 +28,11 @@ export default function LiveClassGateway() {
           meetingUrl: result.meeting_url || result.join_url || '',
           classTitle: result.class_title || 'Live class',
           courseTitle: result.course_title || '',
+          checkedEmail: result.checked_email || session?.email || '',
         })
       } catch (error) {
         if (cancelled) return
-        setState({ loading: false, error: error.message || 'Unable to open this live class.', meetingUrl: '', classTitle: '', courseTitle: '' })
+        setState({ loading: false, error: error.message || 'Unable to open this live class.', meetingUrl: '', classTitle: '', courseTitle: '', checkedEmail: '' })
       }
     }
 
@@ -48,13 +49,22 @@ export default function LiveClassGateway() {
     }
   }, [classId, headers, session?.role])
 
+  const openMeet = () => {
+    if (!state.meetingUrl) return
+    window.open(state.meetingUrl, '_blank', 'noopener,noreferrer')
+  }
+
   if (state.loading) {
     return (
       <main style={styles.shell}>
-        <section style={styles.panel}>
-          <p className="eyebrow">LIVE CLASS</p>
-          <h1 style={styles.title}>Checking access...</h1>
-          <p style={styles.muted}>Verifying your login and course enrollment.</p>
+        <style>{'@keyframes liveClassSecuritySpin { to { transform: rotate(360deg); } }'}</style>
+        <section style={{ ...styles.panel, ...styles.securityPanel }}>
+          <div style={styles.securityRing}>
+            <div style={styles.securityDot} />
+          </div>
+          <p className="eyebrow" style={{ margin: 0 }}>SECURITY CHECK</p>
+          <h1 style={styles.title}>Verifying class access</h1>
+          <p style={styles.muted}>Checking your registered email, login token, and course enrollment.</p>
         </section>
       </main>
     )
@@ -81,21 +91,27 @@ export default function LiveClassGateway() {
           <h1 style={styles.roomTitle}>{state.classTitle}</h1>
           {state.courseTitle && <p style={styles.roomMeta}>{state.courseTitle}</p>}
         </div>
-        <a className="outline-button" href={state.meetingUrl} target="_blank" rel="noreferrer" style={styles.action}>
+        <button className="outline-button" type="button" onClick={openMeet} style={styles.action}>
           Open Meet
-        </a>
+        </button>
       </header>
 
       <section style={styles.launchPad}>
         <div style={styles.launchPanel}>
+          <div style={styles.verifiedRing}>
+            <span style={styles.checkmark}>✓</span>
+          </div>
           <p className="eyebrow" style={{ margin: 0 }}>ACCESS VERIFIED</p>
           <h2 style={styles.overlayTitle}>Your UniSkill class access is approved</h2>
           <p style={styles.overlayText}>
-            Google Meet does not allow itself to be displayed inside another website. Continue from here after UniSkill has verified your login and course enrollment.
+            {state.checkedEmail ? `${state.checkedEmail} is enrolled and invited for this class.` : 'Your registered account is enrolled and invited for this class.'}
           </p>
-          <a className="primary-button" href={state.meetingUrl} target="_blank" rel="noreferrer" style={styles.action}>
+          <p style={styles.overlayText}>
+            The meeting will not open automatically. Continue only after this security check.
+          </p>
+          <button className="primary-button" type="button" onClick={openMeet} style={styles.action}>
             Open Google Meet
-          </a>
+          </button>
         </div>
       </section>
     </main>
@@ -116,6 +132,28 @@ const styles = {
     background: '#FFFFFF',
     border: '1px solid var(--line)',
     borderRadius: '8px',
+  },
+  securityPanel: {
+    display: 'grid',
+    justifyItems: 'center',
+    textAlign: 'center',
+    gap: '12px',
+  },
+  securityRing: {
+    width: '86px',
+    height: '86px',
+    borderRadius: '50%',
+    border: '4px solid rgba(0, 86, 210, 0.14)',
+    borderTopColor: 'var(--orange)',
+    display: 'grid',
+    placeItems: 'center',
+    animation: 'liveClassSecuritySpin 1s linear infinite',
+  },
+  securityDot: {
+    width: '14px',
+    height: '14px',
+    borderRadius: '50%',
+    background: 'var(--orange)',
   },
   title: {
     margin: '10px 0',
@@ -170,6 +208,21 @@ const styles = {
     border: '1px solid rgba(255, 255, 255, 0.14)',
     borderRadius: '8px',
     color: '#FFFFFF',
+  },
+  verifiedRing: {
+    width: '92px',
+    height: '92px',
+    borderRadius: '50%',
+    border: '4px solid rgba(132, 204, 22, 0.34)',
+    display: 'grid',
+    placeItems: 'center',
+    boxShadow: '0 0 0 12px rgba(132, 204, 22, 0.08)',
+  },
+  checkmark: {
+    fontSize: '38px',
+    lineHeight: 1,
+    color: '#bef264',
+    fontWeight: 800,
   },
   overlayTitle: {
     margin: 0,

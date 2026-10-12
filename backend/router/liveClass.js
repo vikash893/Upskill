@@ -25,6 +25,7 @@ const {
     endGoogleMeetConference,
     getGoogleMeetConferenceStatus,
     isGoogleMeetConfigured,
+    ensureGoogleMeetEventAttendees,
     syncGoogleMeetRecordingMetadata
 } = require("../services/googleMeetService");
 
@@ -130,6 +131,20 @@ async function canAccessCourseLiveClasses(user, courseId, liveClass = null) {
     return false;
 }
 
+async function getActiveCourseAttendeeEmails(courseId, teacherEmail = null) {
+    const enrollments = await Enrollment.find({ course_id: courseId, status: "active" })
+        .select("student_email")
+        .lean();
+    const emails = enrollments.map((enrollment) => enrollment.student_email);
+    if (teacherEmail) emails.push(teacherEmail);
+    return [...new Set(
+        emails
+            .filter(Boolean)
+            .map((email) => String(email).trim().toLowerCase())
+            .filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    )];
+}
+
 async function markLiveClassEnded(liveClass, endedAt = new Date()) {
     liveClass.status = "ended";
     liveClass.ended_at = endedAt;
@@ -183,6 +198,7 @@ liveClassRouter.post(
             let meetingResult = { created: false, configured: false, connected: false, meetUrl: null, eventId: null, meetSpaceId: null };
 
             if (googleMeetEnabled && teacherDoc?.google_refresh_token) {
+                const attendeeEmails = await getActiveCourseAttendeeEmails(course.course_id, userEmail);
                 meetingResult = await createGoogleMeetEvent({
                     title,
                     description: topic || "Course live class",
@@ -190,7 +206,7 @@ liveClassRouter.post(
                     endTime: endDateTime,
                     courseTitle: course.course_title,
                     teacherName,
-                    attendeeEmails: []
+                    attendeeEmails
                 }, teacherDoc);
             } else if (googleMeetEnabled) {
                 meetingResult = {
@@ -278,6 +294,7 @@ liveClassRouter.post(
 
             const scheduledTime = liveClass.scheduled_time || new Date();
             const endDateTime = new Date(scheduledTime.getTime() + (Number(liveClass.duration_minutes) || 60) * 60 * 1000);
+            const attendeeEmails = await getActiveCourseAttendeeEmails(liveClass.course_id, liveClass.teacher_email);
 
             const meetingResult = await createGoogleMeetEvent({
                 title: liveClass.title,
@@ -286,7 +303,7 @@ liveClassRouter.post(
                 endTime: endDateTime,
                 courseTitle: liveClass.course_title,
                 teacherName: liveClass.teacher_name,
-                attendeeEmails: []
+                attendeeEmails
             }, teacherDoc);
 
             if (!meetingResult.created) {
@@ -599,6 +616,13 @@ liveClassRouter.post("/live-class/join/:class_id", authMiddleware, liveClassRate
         }
 
         if (req.user.role === "STUDENT") {
+            if (liveClass.calendar_event_id) {
+                const teacher = await Teacher.findOne({ email: liveClass.teacher_email });
+                await ensureGoogleMeetEventAttendees({
+                    calendarEventId: liveClass.calendar_event_id,
+                    attendeeEmails: [studentEmail],
+                }, teacher);
+            }
             const studentName = await getStudentDisplayName(studentEmail, req.user.name);
             await joinLiveClass({ classId: class_id, studentEmail, studentName });
         }
@@ -608,6 +632,8 @@ liveClassRouter.post("/live-class/join/:class_id", authMiddleware, liveClassRate
             join_url: liveClass.meeting_url,
             meeting_url: liveClass.meeting_url,
             platform_join_url: buildPlatformJoinUrl(req, class_id),
+            access_granted: true,
+            checked_email: studentEmail,
             room_name: liveClass.room_name,
             class_title: liveClass.title,
             course_title: liveClass.course_title,
