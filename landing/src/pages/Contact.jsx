@@ -68,7 +68,7 @@ export default function Contact() {
       <section className="stats-strip" style={{ margin: '0 0 50px' }}>
         <div className="stat-box">
           <span style={{ color: 'var(--muted)', fontSize: '11px' }}>OFFICIAL EMAIL</span>
-          <strong style={{ fontSize: '18px', color: 'var(--ink)' }}>uniskill2709@gmail.com</strong>
+          <strong style={{ fontSize: '18px', color: 'var(--ink)' }}>vikashbhardwaj@uniskill.in </strong>
         </div>
         <div className="stat-box">
           <span style={{ color: 'var(--muted)', fontSize: '11px' }}>STUDENT HELPDESK</span>

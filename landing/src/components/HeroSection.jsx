@@ -1,7 +1,7 @@
 import { getAppUrl, getRegisterUrl } from '../config'
 import { useState, useEffect } from 'react'
-import founder1 from "../public/photos/ts2.png"
-import founder2 from "../public/photos/ts2.png"
+import founder1 from "../public/photos/ts.png"
+import founder2 from "../public/photos/ts1.png"
 import founder3 from "../public/photos/ts2.png"
 
 export default function HeroSection() {

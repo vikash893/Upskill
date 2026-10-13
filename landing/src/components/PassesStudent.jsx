@@ -1,5 +1,10 @@
 import { useState, useEffect } from 'react'
 import student1 from '../public/gal/s1.png'
+import student2 from '../public/gal/s2.png'
+import student3 from '../public/gal/s3.png'
+import student4 from '../public/gal/s4.png'
+import student5 from '../public/gal/s5.png'
+import student6 from '../public/gal/s6.png'
 
 export default function StudentSuccess() {
   const students = [
@@ -7,6 +12,41 @@ export default function StudentSuccess() {
       name: 'Kanika',
       course: 'Marketing and Enterprenurship',
       photo: student1,
+      quote: 'Went from zero level to Master in Marketing and Enterprenurship in 1 months.',
+    },
+    // Peehu Yadav
+    {
+      name: 'Peehu Yadav',
+      course: 'Marketing and Enterprenurship',
+      photo: student2,
+      quote: 'Went from zero level to Master in Marketing and Enterprenurship in 1 months.',
+    },
+    //Anika Sharma
+     {
+      name: 'Anika Sharma',
+      course: 'Marketing and Enterprenurship',
+      photo: student3,
+      quote: 'Went from zero level to Master in Marketing and Enterprenurship in 1 months.',
+    },
+    //Aahana Agarwal
+     {
+      name: 'Aahana Agarwal',
+      course: 'Marketing and Enterprenurship',
+      photo: student4,
+      quote: 'Went from zero level to Master in Marketing and Enterprenurship in 1 months.',
+    },
+    //Kanishk Sharma
+     {
+      name: 'Kanishk Sharma',
+      course: 'Marketing and Enterprenurship',
+      photo: student5,
+      quote: 'Went from zero level to Master in Marketing and Enterprenurship in 1 months.',
+    },
+    //RITUraj Yadav
+     {
+      name: 'Rituraj Yadav',
+      course: 'Marketing and Enterprenurship',
+      photo: student6,
       quote: 'Went from zero level to Master in Marketing and Enterprenurship in 1 months.',
     },
   ]
