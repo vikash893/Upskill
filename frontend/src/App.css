@@ -482,6 +482,20 @@ footer { display: flex; justify-content: space-between; padding: 24px 9vw; backg
 .workspace-user-meta { display: grid; gap: 1px; line-height: 1.15; }
 .workspace-user-meta strong { color: var(--ink); font-size: 12px; }
 .workspace-user-meta small { color: var(--muted); font-size: 10px; font-weight: 400; }
+
+.sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.sidebar-toggle-btn { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15); color: var(--lime); width: 32px; height: 32px; border-radius: var(--radius-md); display: grid; place-items: center; cursor: pointer; font-size: 14px; transition: background .2s; }
+.sidebar-toggle-btn:hover { background: var(--orange); color: var(--on-accent); }
+.workspace-sidebar .brand { font-size: 20px; color: var(--sidebar-text); text-decoration: none; }
+.sidebar-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #7B8698; margin: 0 0 12px 4px; font-weight: 700; }
+.sidebar-nav-list { display: flex; flex-direction: column; gap: 4px; flex: 1; margin: 0; padding: 0; list-style: none; }
+.sidebar-nav-item { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--radius-md); color: #9CA3B4; text-decoration: none; font-size: 14px; font-weight: 500; border: 1px solid transparent; transition: all .15s ease; cursor: pointer; }
+.sidebar-nav-item:hover { color: var(--sidebar-text); background: rgba(255,255,255,.05); }
+.sidebar-nav-item.active { color: var(--sidebar-text); background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.15); font-weight: 600; }
+.sidebar-nav-item.active .nav-num, .sidebar-nav-item.active .nav-mark { color: var(--lime); }
+.nav-num { font-size: 12px; font-weight: 600; color: var(--orange); min-width: 16px; }
+.nav-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 .sidebar-sections { display: flex; flex-direction: column; gap: 8px; flex: 1 0 auto; }
 .sidebar-section-title {
   font-size: 11px;
@@ -497,9 +511,12 @@ footer { display: flex; justify-content: space-between; padding: 24px 9vw; backg
 .logout-item { width: 100%; background: none; border: 0; text-align: left; color: #ff8a8a; }
 .logout-item .nav-mark { color: #ff8a8a; }
 .workspace-layout.collapsed .sidebar-section-title,
-.workspace-layout.collapsed .sidebar-label { display: none; }
+.workspace-layout.collapsed .sidebar-label,
+.workspace-layout.collapsed .brand-text { display: none; }
 .workspace-layout.collapsed .nav-label { display: none; }
 .workspace-layout.collapsed .sidebar-nav-item { justify-content: center; padding: 12px 0; }
+.workspace-layout.collapsed .nav-num,
+.workspace-layout.collapsed .nav-mark { margin: 0; font-size: 12px; }
 
 .brand-logo img { height: 36px; width: auto; display: block; }
 .workspace-sidebar .brand-logo img { height: 28px; }

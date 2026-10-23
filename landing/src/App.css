@@ -362,9 +362,6 @@ footer .brand-text .brand-name-accent {
   padding: 0;
   cursor: pointer;
   color: var(--ink);
-  flex-shrink: 0;
-  box-sizing: border-box;
-  overflow: hidden;
   transition: all 0.2s ease;
 }
 .mobile-hamburger-btn:hover {
@@ -379,7 +376,7 @@ footer .brand-text .brand-name-accent {
 .hamburger-box {
   width: 20px;
   height: 14px;
-  display: block;
+  display: inline-block;
   position: relative;
 }
 .hamburger-inner,
@@ -390,23 +387,19 @@ footer .brand-text .brand-name-accent {
   background-color: var(--ink);
   border-radius: 2px;
   position: absolute;
-  left: 0;
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
 .hamburger-inner {
   top: 50%;
-  left: 0;
   transform: translateY(-50%);
 }
 .hamburger-inner::before {
   content: '';
   top: -6px;
-  left: 0;
 }
 .hamburger-inner::after {
   content: '';
   bottom: -6px;
-  left: 0;
 }
 .mobile-hamburger-btn.is-active .hamburger-inner {
   background-color: transparent;
