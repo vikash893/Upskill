@@ -101,7 +101,7 @@ export default function Navbar({ onAuthOpen }) {
               </button>
             </div>
           ) : (
-            <button className="outline-button" type="button" onClick={() => onAuthOpen('login')} style={{ padding: '9px 16px', fontSize: 12 }}>
+            <button className="outline-button header-signin-btn" type="button" onClick={() => onAuthOpen('login')} style={{ padding: '9px 16px', fontSize: 12 }}>
               Sign in
             </button>
           )}
@@ -110,9 +110,21 @@ export default function Navbar({ onAuthOpen }) {
             className="mobile-hamburger-btn"
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Toggle navigation"
+            aria-label={mobileMenuOpen ? 'Close navigation' : 'Open navigation'}
+            aria-expanded={mobileMenuOpen}
           >
-            {mobileMenuOpen ? '✕' : '☰'}
+            {mobileMenuOpen ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            )}
           </button>
         </div>
       </header>

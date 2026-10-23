@@ -476,6 +476,9 @@ export default function Home({ onAuthOpen }) {
           max-width: 1440px;
           margin: 0 auto;
           padding: 0 16px;
+          width: 100%;
+          box-sizing: border-box;
+          overflow-x: hidden;
         }
 
         /* --- HERO --- */
@@ -1147,60 +1150,73 @@ export default function Home({ onAuthOpen }) {
         }
 
         @media (max-width: 480px) {
-          .home-main { padding: 0 8px; }
+          .home-main { padding: 0 10px; }
           .coursera-hero-wrapper { border-radius: 16px; margin: 12px 0; }
-          .coursera-hero-content { padding: 24px 16px; }
-          .hero-title { font-size: 16px; }
-          .hero-subtitle { font-size: 28px; letter-spacing: -0.5px; }
-          .hero-description { font-size: 14px; }
-          .hero-primary-cta { padding: 12px 20px; font-size: 14px; width: 100%; }
-          .coursera-hero-image-area { height: 260px; }
-          .hero-student-img { width: 180px; height: 230px; border-width: 3px; }
-          .hero-shape-circle { width: 160px; height: 160px; }
-          .hero-shape-arc { width: 200px; height: 200px; border-width: 20px; right: -30px; }
-          .content-section, .dashboard-section, .certs-section { padding: 40px 16px; border-radius: 16px; margin: 12px 0; }
-          .signal-strip { padding: 24px 16px; border-radius: 16px; margin: 12px 0; }
-          .signal-strip div { flex: 1 1 40%; }
-          .signal-strip strong { font-size: 22px; }
-          .signal-strip span { font-size: 12px; }
-          .about-section { padding: 40px 16px; border-radius: 16px; margin: 12px 0; }
-          .about-heading { font-size: 26px; }
-          .contact-section { padding: 50px 16px; border-radius: 16px; margin: 12px 0; }
-          .contact-section h2 { font-size: 26px; }
-          .contact-actions { flex-direction: column; gap: 14px; }
-          .value-card, .step-card { padding: 20px; }
-          .testimonial-card { padding: 18px; }
-          .faq-item { padding: 16px; }
-          .faq-question strong { font-size: 14px; }
+          .coursera-hero-content { padding: 24px 14px; }
+          .hero-title { font-size: 15px; }
+          .hero-subtitle { font-size: 26px; letter-spacing: -0.5px; }
+          .hero-description { font-size: 13.5px; margin-bottom: 20px; }
+          .hero-primary-cta { padding: 12px 20px; font-size: 14px; width: 100%; text-align: center; }
+          .coursera-hero-image-area { height: 240px; width: 100%; max-width: 100%; }
+          .hero-student-img { width: 180px; height: 220px; border-width: 3px; }
+          .hero-shape-circle { width: 150px; height: 150px; }
+          .hero-shape-arc { width: 180px; height: 180px; border-width: 18px; right: -20px; }
+          .content-section, .dashboard-section, .certs-section { padding: 36px 14px; border-radius: 14px; margin: 12px 0; }
+          .signal-strip { padding: 20px 12px; border-radius: 14px; margin: 12px 0; }
+          .signal-strip div { flex: 1 1 42%; }
+          .signal-strip strong { font-size: 20px; }
+          .signal-strip span { font-size: 11px; }
+          .about-section { padding: 36px 14px; border-radius: 14px; margin: 12px 0; }
+          .about-heading { font-size: 24px; }
+          .contact-section { padding: 44px 14px; border-radius: 14px; margin: 12px 0; }
+          .contact-section h2 { font-size: 24px; }
+          .contact-actions { flex-direction: column; gap: 12px; width: 100%; }
+          .contact-link { font-size: 15px; }
+          .value-grid, .steps-grid { grid-template-columns: 1fr; gap: 14px; }
+          .value-card, .step-card { padding: 18px; }
+          .testimonial-card { padding: 16px; }
+          .faq-item { padding: 14px; }
+          .faq-question strong { font-size: 13.5px; }
 
           /* Dashboard mobile tweaks */
-          .dashboard-visual { height: 380px; }
-          .dash-course-card { width: 200px; left: 0; top: 60px; }
-          .dash-back-panel { width: 200px; left: -10px; top: 20px; height: 340px; }
-          .dash-course-header { font-size: 12px; padding: 12px 16px; }
-          .dash-course-list li { padding: 9px 12px; font-size: 12px; }
-          .dash-progress-banner { top: 10px; right: -6px; padding: 10px 12px; gap: 8px; }
-          .dash-banner-icon { width: 32px; height: 32px; }
-          .dash-banner-icon svg { width: 18px; height: 18px; }
-          .dash-progress-banner strong { font-size: 11px; }
-          .dash-progress-banner span { font-size: 9.5px; }
-          .dash-stats { width: 200px; bottom: 20px; right: -10px; gap: 8px; }
-          .dash-stat-tile { padding: 10px; gap: 8px; }
-          .stat-icon { width: 30px; height: 30px; font-size: 15px; }
-          .dash-stat-tile strong { font-size: 15px; }
-          .dash-stat-tile span { font-size: 9.5px; }
+          .dashboard-visual { height: 360px; max-width: 100%; overflow: hidden; position: relative; }
+          .dash-course-card { width: min(210px, 62vw); left: 0; top: 50px; }
+          .dash-back-panel { width: min(210px, 62vw); left: 0; top: 20px; height: 320px; }
+          .dash-course-header { font-size: 11.5px; padding: 10px 14px; }
+          .dash-course-list li { padding: 8px 10px; font-size: 11.5px; }
+          .dash-progress-banner { top: 6px; right: 0; padding: 8px 10px; gap: 6px; }
+          .dash-banner-icon { width: 28px; height: 28px; }
+          .dash-banner-icon svg { width: 16px; height: 16px; }
+          .dash-progress-banner strong { font-size: 10.5px; }
+          .dash-progress-banner span { font-size: 9px; }
+          .dash-stats { width: min(210px, 62vw); bottom: 10px; right: 0; gap: 6px; }
+          .dash-stat-tile { padding: 8px; gap: 6px; }
+          .stat-icon { width: 26px; height: 26px; font-size: 13px; }
+          .dash-stat-tile strong { font-size: 13px; }
+          .dash-stat-tile span { font-size: 8.5px; }
 
           /* Certs mobile tweaks */
-          .certs-visual { height: 340px; }
-          .cert-card { width: 200px; height: 140px; padding: 16px; }
-          .cert-brand-badge { font-size: 11.5px; }
-          .cert-brand-badge::before { width: 16px; height: 16px; background-size: 10px; }
-          .cert-title { font-size: 15px; max-width: 120px; }
-          .cert-ribbon { width: 38px; height: 76px; right: 14px; }
-          .ribbon-inner { width: 22px; height: 22px; font-size: 12px; }
+          .certs-visual { height: 310px; max-width: 100%; overflow: hidden; position: relative; }
+          .cert-card { width: min(210px, 66vw); height: 130px; padding: 12px; }
+          .cert-brand-badge { font-size: 11px; }
+          .cert-brand-badge::before { width: 14px; height: 14px; background-size: 9px; }
+          .cert-title { font-size: 13.5px; max-width: 110px; }
+          .cert-ribbon { width: 32px; height: 60px; right: 10px; }
+          .ribbon-inner { width: 18px; height: 18px; font-size: 10px; }
           .cert-card-1 { right: 0; }
-          .cert-card-2 { top: 110px; left: 0; }
-          .cert-card-3 { top: 220px; right: 0; }
+          .cert-card-2 { top: 90px; left: 0; }
+          .cert-card-3 { top: 175px; right: 0; }
+        }
+
+        @media (max-width: 360px) {
+          .home-main { padding: 0 4px; }
+          .coursera-hero-content { padding: 18px 10px; }
+          .hero-subtitle { font-size: 22px; }
+          .hero-student-img { width: 150px; height: 190px; }
+          .coursera-hero-image-area { height: 210px; }
+          .content-section, .dashboard-section, .certs-section, .about-section, .contact-section { padding: 28px 10px; }
+          .signal-strip { padding: 16px 8px; }
+          .signal-strip div { flex: 1 1 100%; }
         }
       `}</style>
     </main>
