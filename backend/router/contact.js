@@ -75,7 +75,7 @@ router.get('/public/platform-stats', async (req, res) => {
       User.countDocuments(),
       Teacher.countDocuments(),
       LiveClass.countDocuments(),
-      Teacher.find({}, 'name email course_assigned phone photo').limit(8).lean(),
+      Teacher.find({}, 'name photo course_assigned').limit(8).lean(),
     ]);
 
     const formattedFaculty = (realTeachers || []).map(t => ({

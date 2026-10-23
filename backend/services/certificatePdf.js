@@ -21,6 +21,16 @@ async function fetchSignature(url) {
         throw new Error("Missing signature URL.");
     }
 
+    // SSRF protection: only permit HTTPS fetching from trusted Cloudinary host
+    try {
+        const parsedUrl = new URL(url);
+        if (parsedUrl.protocol !== "https:" || (!parsedUrl.hostname.endsWith("cloudinary.com") && !parsedUrl.hostname.endsWith("res.cloudinary.com"))) {
+            throw new Error("Signature image must be hosted on an official secure storage provider.");
+        }
+    } catch (urlErr) {
+        throw new Error("Invalid signature URL: " + urlErr.message);
+    }
+
     try {
         // Prefer PNG high-res if on Cloudinary
         const pngUrl = url.includes("/upload/")
@@ -203,3 +213,4 @@ async function createCertificatePdf(certificate) {
 }
 
 module.exports = createCertificatePdf;
+

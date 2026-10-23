@@ -146,6 +146,15 @@ teacherRouter.post("/teacher-login", authRateLimit, async (req, res) => {
 
 // GET ALL TEACHERS
 teacherRouter.get("/get-all-teachers", async (req, res) => {
+    // Check if requester is an authenticated admin
+    let isAdmin = false;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+        try {
+            const decoded = jwt.verify(authHeader.split(" ")[1], process.env.JWT_SECRET || "uniskill_2026_secret");
+            if (decoded && decoded.role === "ADMIN") isAdmin = true;
+        } catch {}
+    }
     try {
         const { search } = req.query;
         const filter = {};
@@ -157,7 +166,7 @@ teacherRouter.get("/get-all-teachers", async (req, res) => {
         const isPaginated = req.query.page !== undefined || req.query.limit !== undefined;
         const { page, limit, skip } = getPaginationParams(req, 10, 100);
 
-        let query = Teacher.find(filter).select("-password").sort({ createdAt: -1 });
+        let query = Teacher.find(filter).select(isAdmin ? "-password" : "name photo course_assigned").sort({ createdAt: -1 });
         if (isPaginated) {
             query = query.skip(skip).limit(limit);
         }

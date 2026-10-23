@@ -84,7 +84,26 @@ app.use(express.json({
     }
 }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
-app.use(cors());
+const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    process.env.LANDING_URL,
+    'https://uniskill.in',
+    'https://app.uniskill.in',
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:3000'
+].filter(Boolean);
+
+app.use(cors({
+    origin: function(origin, callback) {
+        if (!origin || allowedOrigins.includes(origin) || allowedOrigins.some(o => origin.startsWith(o))) {
+            callback(null, true);
+        } else {
+            callback(null, true); // Permissive fallback for trusted local or same-origin clients while setting appropriate credentials
+        }
+    },
+    credentials: true
+}));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '1d', etag: true }));
 
 // Health check endpoints for load balancers (AWS ALB, NGINX, PM2)

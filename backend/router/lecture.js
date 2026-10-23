@@ -146,10 +146,15 @@ lectureRouter.get("/lecture/course/:course_id", authMiddleware, async (req, res)
 lectureRouter.delete("/lecture/:lecture_id", authMiddleware, requireRole("TEACHER", "ADMIN"), async (req, res) => {
     try {
         const { lecture_id } = req.params;
-        const deleted = await Lecture.findOneAndDelete({ lecture_id });
-        if (!deleted) {
-            return res.status(404).json({ error: "Lecture not found" });
+        const lecture = await Lecture.findOne({ lecture_id });
+        if (!lecture) return res.status(404).json({ error: "Lecture not found" });
+        if (req.user.role === "TEACHER") {
+            const assigned = await isTeacherAssigned(req.user.email, lecture.course_id);
+            if (!assigned && lecture.teacher_email?.toLowerCase() !== req.user.email?.toLowerCase()) {
+                return res.status(403).json({ error: "You are not authorized to delete lectures from this course." });
+            }
         }
+        await Lecture.deleteOne({ lecture_id });
         return res.status(200).json({ message: "Lecture deleted successfully" });
     } catch (error) {
         return res.status(500).json({ error: "Internal server error" });

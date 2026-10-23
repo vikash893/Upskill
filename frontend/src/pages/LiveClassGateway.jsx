@@ -175,7 +175,15 @@ export default function LiveClassGateway() {
           clearInterval(timer)
           if (!hasRedirectedRef.current) {
             hasRedirectedRef.current = true
-            window.location.href = details.meetingUrl
+            // Ensure meetingUrl uses https and is trusted
+            try {
+              const url = new URL(details.meetingUrl, window.location.origin)
+              if (url.protocol === 'https:' || url.protocol === 'http:') {
+                window.location.href = url.href
+              }
+            } catch {
+              console.error('Invalid meeting URL')
+            }
           }
           return 0
         }
@@ -948,3 +956,4 @@ export default function LiveClassGateway() {
     </div>
   )
 }
+

@@ -5,7 +5,8 @@ const fileFilter = (req, file, cb) => {
     const allowedExtensions = /\.(jpeg|jpg|png|webp|gif|pdf|doc|docx|txt|zip|rar|ppt|pptx|xls|xlsx|csv|mp4|webm)$/i;
     const isExtAllowed = allowedExtensions.test(path.extname(file.originalname || ""));
 
-    if (isExtAllowed || file.mimetype) {
+    const dangerousMimes = /html|javascript|ecmascript|svg|php|sh|bat|cmd|exe/i;
+    if (isExtAllowed && (!file.mimetype || !dangerousMimes.test(file.mimetype))) {
         cb(null, true);
     } else {
         cb(new Error("File format not supported"), false);
@@ -21,3 +22,4 @@ const upload = multer({
 });
 
 module.exports = upload;
+

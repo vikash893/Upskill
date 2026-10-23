@@ -31,7 +31,7 @@ enrollmentRouter.post("/enroll/free/:course_id", authMiddleware, async (req, res
             return res.status(404).json({ error: "Course not found" });
         }
 
-        if (course.course_type !== "free" && course.course_amount > 0) {
+        if (course.course_type !== "free" || (course.course_amount && course.course_amount > 0)) {
             return res.status(400).json({ error: "This is a paid course. Please complete Razorpay checkout to enroll." });
         }
 

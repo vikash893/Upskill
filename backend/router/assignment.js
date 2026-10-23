@@ -267,7 +267,15 @@ assignmentRouter.patch(
 assignmentRouter.delete("/assignment/:assignment_id", authMiddleware, requireRole("TEACHER", "ADMIN"), async (req, res) => {
     try {
         const { assignment_id } = req.params;
-        await Assignment.findOneAndDelete({ assignment_id });
+        const assignment = await Assignment.findOne({ assignment_id });
+        if (!assignment) return res.status(404).json({ error: "Assignment not found" });
+        if (req.user.role === "TEACHER") {
+            const assigned = await isTeacherAssigned(req.user.email, assignment.course_id);
+            if (!assigned && assignment.teacher_email?.toLowerCase() !== req.user.email?.toLowerCase()) {
+                return res.status(403).json({ error: "You are not authorized to delete this assignment." });
+            }
+        }
+        await Assignment.deleteOne({ assignment_id });
         return res.status(200).json({ message: "Assignment deleted successfully" });
     } catch (error) {
         return res.status(500).json({ error: "Internal server error" });
@@ -275,3 +283,4 @@ assignmentRouter.delete("/assignment/:assignment_id", authMiddleware, requireRol
 });
 
 module.exports = assignmentRouter;
+
