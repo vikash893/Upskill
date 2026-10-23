@@ -44,7 +44,22 @@ export default function Navbar() {
     <>
       <header className="site-header" id="top">
         <div className="site-header-inner">
-          <Brand variant="logo" to="/" onClick={() => setMobileOpen(false)} />
+          <div className="site-header-left">
+            {/* Mobile Hamburger Button */}
+            <button
+              className={`mobile-hamburger-btn ${mobileOpen ? 'is-active' : ''}`}
+              type="button"
+              onClick={() => setMobileOpen(!mobileOpen)}
+              aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={mobileOpen}
+            >
+              <span className="hamburger-box">
+                <span className="hamburger-inner"></span>
+              </span>
+            </button>
+
+            <Brand variant="logo" to="/" onClick={() => setMobileOpen(false)} />
+          </div>
 
           {/* Desktop Navigation */}
           <nav className="desktop-nav" aria-label="Main navigation">
@@ -82,19 +97,6 @@ export default function Navbar() {
               <span>Explore UniSkill</span>
               <span className="btn-arrow">↗</span>
             </a>
-
-            {/* Mobile Hamburger Button */}
-            <button
-              className={`mobile-hamburger-btn ${mobileOpen ? 'is-active' : ''}`}
-              type="button"
-              onClick={() => setMobileOpen(!mobileOpen)}
-              aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
-              aria-expanded={mobileOpen}
-            >
-              <span className="hamburger-box">
-                <span className="hamburger-inner"></span>
-              </span>
-            </button>
           </div>
         </div>
       </header>

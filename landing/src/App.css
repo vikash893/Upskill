@@ -302,6 +302,12 @@ footer .brand-text .brand-name-accent {
   gap: 20px;
 }
 
+.site-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .desktop-nav {
   display: flex;
   align-items: center;
@@ -357,12 +363,17 @@ footer .brand-text .brand-name-accent {
   border-radius: 8px;
   width: 40px;
   height: 40px;
+  min-width: 40px;
+  min-height: 40px;
   align-items: center;
   justify-content: center;
   padding: 0;
   cursor: pointer;
   color: var(--ink);
   transition: all 0.2s ease;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  position: relative;
 }
 .mobile-hamburger-btn:hover {
   border-color: var(--orange);
@@ -376,8 +387,10 @@ footer .brand-text .brand-name-accent {
 .hamburger-box {
   width: 20px;
   height: 14px;
-  display: inline-block;
+  display: block;
   position: relative;
+  box-sizing: border-box;
+  margin: 0 auto;
 }
 .hamburger-inner,
 .hamburger-inner::before,
@@ -387,19 +400,24 @@ footer .brand-text .brand-name-accent {
   background-color: var(--ink);
   border-radius: 2px;
   position: absolute;
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  left: 0;
+  box-sizing: border-box;
+  transition: transform 0.2s ease, opacity 0.2s ease, background-color 0.2s ease;
 }
 .hamburger-inner {
   top: 50%;
+  left: 0;
   transform: translateY(-50%);
 }
 .hamburger-inner::before {
   content: '';
   top: -6px;
+  left: 0;
 }
 .hamburger-inner::after {
   content: '';
   bottom: -6px;
+  left: 0;
 }
 .mobile-hamburger-btn.is-active .hamburger-inner {
   background-color: transparent;
@@ -420,7 +438,7 @@ footer .brand-text .brand-name-accent {
   -webkit-backdrop-filter: blur(8px);
   z-index: 999;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   animation: fadeInOverlay 0.25s ease forwards;
 }
 @keyframes fadeInOverlay {
@@ -435,13 +453,13 @@ footer .brand-text .brand-name-accent {
   padding: 24px 20px;
   display: flex;
   flex-direction: column;
-  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.2);
-  border-left: 1px solid var(--line);
+  box-shadow: 8px 0 32px rgba(0, 0, 0, 0.2);
+  border-right: 1px solid var(--line);
   overflow-y: auto;
-  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: slideInLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
-@keyframes slideInRight {
-  from { transform: translateX(100%); }
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
   to { transform: translateX(0); }
 }
 
@@ -1084,6 +1102,9 @@ footer .brand-text .brand-name-accent {
   .site-header-inner {
     padding: 0 14px;
   }
+  .site-header-left {
+    gap: 10px;
+  }
   .brand-size-md .brand-text {
     font-size: 19px;
   }
@@ -1095,6 +1116,9 @@ footer .brand-text .brand-name-accent {
 @media (max-width: 380px) {
   .site-header-inner {
     padding: 0 10px;
+  }
+  .site-header-left {
+    gap: 8px;
   }
   .brand-link {
     gap: 7px;
