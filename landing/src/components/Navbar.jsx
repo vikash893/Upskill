@@ -11,6 +11,7 @@ export default function Navbar() {
   const navLinks = [
     { label: 'Home', path: '/' },
     { label: 'Courses', path: '/courses' },
+    { label: 'Our Mentors', path: '/mentors' },
     { label: 'About', path: '/about' },
     { label: 'Contact', path: '/contact' },
   ]

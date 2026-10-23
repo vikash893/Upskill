@@ -5,6 +5,7 @@ import Footer from './components/Footer'
 import Home from './pages/Home'
 import About from './pages/About'
 import Courses from './pages/Courses'
+import Mentors from './pages/Mentors'
 import Contact from './pages/Contact'
 import './App.css'
 
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/courses" element={<Courses />} />
+        <Route path="/mentors" element={<Mentors />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -33,6 +33,7 @@ const formsRouter = require('./router/forms');
 const announcementRouter = require('./router/announcement');
 const activityRouter = require('./router/activity');
 const jobRouter = require('./router/job');
+const mentorRouter = require('./router/mentor');
 
 const app = express();
 const port = Number(process.env.PORT) || 8000;
@@ -140,10 +141,12 @@ app.use('/api', formsRouter);
 app.use('/api', announcementRouter);
 app.use('/api', activityRouter);
 app.use('/api', jobRouter);
+app.use('/api', mentorRouter);
 app.use('/api/scalable-live-class', scalableLiveClassRouter);
 app.use(announcementRouter);
 app.use(activityRouter);
 app.use(jobRouter);
+app.use(mentorRouter);
 
 async function startWorker() {
     await connectDb();

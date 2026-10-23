@@ -39,6 +39,7 @@ import TeacherStudents from './pages/teacher/TeacherStudents'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminCourses from './pages/AdminCourses'
 import AdminTeachers from './pages/AdminTeachers'
+import AdminMentors from './pages/AdminMentors'
 import AdminUsers from './pages/AdminUsers'
 import AdminPayments from './pages/AdminPayments'
 import AdminLogs from './pages/AdminLogs'
@@ -294,6 +295,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['ADMIN']}>
               <AdminTeachers />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/mentors"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminMentors />
             </ProtectedRoute>
           }
         />

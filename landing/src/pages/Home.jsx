@@ -11,6 +11,7 @@ import TestimonialsSection from '../components/TestimonialsSection'
 import FaqSection from '../components/FaqSection'
 import CtaBanner from '../components/CtaBanner'
 import StudentSuccess from '../components/PassesStudent'
+import MentorsSection from '../components/MentorsSection'
 
 export default function Home() {
   const [courses, setCourses] = useState([])
@@ -82,6 +83,9 @@ export default function Home() {
 
       {/* Student Sucess */}
       <StudentSuccess/>
+
+      {/* Industry Mentors */}
+      <MentorsSection />
 
       {/* 6. Four Step Methodology */}
       <HowItWorksSection />

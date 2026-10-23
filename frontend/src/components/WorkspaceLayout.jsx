@@ -94,6 +94,7 @@ function getNavSections(role) {
       items: [
         { label: 'Students', path: '/admin/users' },
         { label: 'Teachers', path: '/admin/teachers' },
+        { label: 'Mentors', path: '/admin/mentors' },
         { label: 'Courses', path: '/admin/courses' },
         { label: 'Jobs & Internships', path: '/admin/jobs' },
         { label: 'Certificates', path: '/admin/certificates' },
