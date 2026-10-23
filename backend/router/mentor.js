@@ -5,6 +5,7 @@ const authMiddleware = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
 const { persistFile } = require("../config/cloudinary");
 const { getCache, setCache, delCache } = require("../config/redis");
+const { getPaginationParams, buildPaginationMetadata } = require("../utils/pagination");
 
 const mentorRouter = express.Router();
 const CACHE_KEY = "mentors:public:list";
@@ -27,17 +28,43 @@ function parseExpertise(expertiseInput) {
 // 1. PUBLIC: Get all active mentors
 mentorRouter.get("/mentors", async (req, res) => {
     try {
-        const cached = await getCache(CACHE_KEY);
-        if (cached) {
-            return res.status(200).json({ success: true, mentors: cached, cached: true });
+        const { search } = req.query;
+        const isPaginated = req.query.page !== undefined || req.query.limit !== undefined;
+
+        if (!search && !isPaginated) {
+            const cached = await getCache(CACHE_KEY);
+            if (cached) {
+                return res.status(200).json({ success: true, mentors: cached, cached: true });
+            }
         }
 
-        const mentors = await Mentor.find({ is_active: true })
-            .sort({ order: 1, createdAt: -1 })
-            .lean();
+        const filter = { is_active: true };
+        if (search && search.trim()) {
+            const regex = new RegExp(search.trim(), "i");
+            filter.$or = [{ name: regex }, { role: regex }, { company: regex }, { bio: regex }, { expertise: regex }];
+        }
 
-        await setCache(CACHE_KEY, mentors, 300); // 5 minutes cache
-        return res.status(200).json({ success: true, mentors });
+        const { page, limit, skip } = getPaginationParams(req, 12, 100);
+        let query = Mentor.find(filter).sort({ order: 1, createdAt: -1 });
+        if (isPaginated) {
+            query = query.skip(skip).limit(limit);
+        }
+
+        const [mentors, totalCount] = await Promise.all([
+            query.lean(),
+            Mentor.countDocuments(filter)
+        ]);
+
+        if (!search && !isPaginated) {
+            await setCache(CACHE_KEY, mentors, 300);
+        }
+
+        return res.status(200).json({
+            success: true,
+            mentors,
+            total: totalCount,
+            pagination: buildPaginationMetadata(totalCount, page, isPaginated ? limit : (totalCount || 1))
+        });
     } catch (error) {
         console.error("GET /mentors error:", error);
         return res.status(500).json({ error: "Failed to retrieve mentors" });
@@ -47,10 +74,35 @@ mentorRouter.get("/mentors", async (req, res) => {
 // 2. ADMIN: Get all mentors (both active and inactive)
 mentorRouter.get("/admin/mentors", authMiddleware, requireRole("ADMIN"), async (req, res) => {
     try {
-        const mentors = await Mentor.find()
-            .sort({ order: 1, createdAt: -1 })
-            .lean();
-        return res.status(200).json({ success: true, mentors });
+        const { search, status } = req.query;
+        const filter = {};
+        if (status === "active") filter.is_active = true;
+        if (status === "inactive") filter.is_active = false;
+
+        if (search && search.trim()) {
+            const regex = new RegExp(search.trim(), "i");
+            filter.$or = [{ name: regex }, { role: regex }, { company: regex }, { bio: regex }];
+        }
+
+        const isPaginated = req.query.page !== undefined || req.query.limit !== undefined;
+        const { page, limit, skip } = getPaginationParams(req, 10, 100);
+
+        let query = Mentor.find(filter).sort({ order: 1, createdAt: -1 });
+        if (isPaginated) {
+            query = query.skip(skip).limit(limit);
+        }
+
+        const [mentors, totalCount] = await Promise.all([
+            query.lean(),
+            Mentor.countDocuments(filter)
+        ]);
+
+        return res.status(200).json({
+            success: true,
+            mentors,
+            total: totalCount,
+            pagination: buildPaginationMetadata(totalCount, page, isPaginated ? limit : (totalCount || 1))
+        });
     } catch (error) {
         console.error("GET /admin/mentors error:", error);
         return res.status(500).json({ error: "Failed to retrieve mentors" });

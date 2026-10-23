@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import CourseStudentsModal from '../components/CourseStudentsModal'
 import { mediaUrl } from '../utils/mediaUrl'
 import Skeleton from '../components/Skeleton'
+import Pagination from '../components/Pagination'
 
 export default function AdminCourses() {
   const { session } = useAuth()
@@ -38,16 +39,47 @@ export default function AdminCourses() {
   const [bulkTierDraft, setBulkTierDraft] = useState({ minimum_courses: '2', discount_percent: '' })
   const [bulkTiersLoading, setBulkTiersLoading] = useState(true)
   const [bulkTiersSaving, setBulkTiersSaving] = useState(false)
+  const [coursePage, setCoursePage] = useState(1)
+  const [courseLimit, setCourseLimit] = useState(10)
+  const [courseSearch, setCourseSearch] = useState('')
+  const [coursePagination, setCoursePagination] = useState({
+    currentPage: 1,
+    pageSize: 10,
+    totalRecords: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  })
 
   const fetchCourses = () => {
     setLoading(true)
-    request('/admin/all-courses', { headers })
-      .then((d) => setCourses(d.courses || []))
+    const params = new URLSearchParams()
+    params.set('page', String(coursePage))
+    params.set('limit', String(courseLimit))
+    if (courseSearch.trim()) params.set('search', courseSearch.trim())
+
+    request(`/admin/all-courses?${params.toString()}`, { headers })
+      .then((d) => {
+        setCourses(d.courses || [])
+        if (d.pagination) {
+          setCoursePagination(d.pagination)
+        } else {
+          const tot = d.total || (d.courses ? d.courses.length : 0)
+          setCoursePagination({
+            currentPage: coursePage,
+            pageSize: courseLimit,
+            totalRecords: tot,
+            totalPages: Math.ceil(tot / courseLimit) || 1,
+            hasNextPage: coursePage * courseLimit < tot,
+            hasPreviousPage: coursePage > 1,
+          })
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { fetchCourses() }, [])
+  useEffect(() => { fetchCourses() }, [coursePage, courseLimit, courseSearch])
 
   useEffect(() => {
     request('/payment/admin/bulk-discounts', { headers })
@@ -440,6 +472,26 @@ export default function AdminCourses() {
         )}
 
         {/* Course List */}
+        <input
+          type="text"
+          placeholder="Search courses by title or description..."
+          value={courseSearch}
+          onChange={(e) => {
+            setCourseSearch(e.target.value)
+            setCoursePage(1)
+          }}
+          style={{
+            width: '100%',
+            maxWidth: '400px',
+            padding: '12px',
+            border: '1px solid var(--line)',
+            background: '#FFFFFF',
+            outlineColor: 'var(--orange)',
+            fontFamily: 'inherit',
+            marginBottom: '20px',
+          }}
+        />
+
         {loading ? (
           <Skeleton variant="course-cards" count={3} label="Loading courses" />
         ) : courses.length === 0 ? (
@@ -499,6 +551,17 @@ export default function AdminCourses() {
             })}
           </div>
         )}
+
+        <Pagination
+          pagination={coursePagination}
+          onPageChange={setCoursePage}
+          onPageSizeChange={(newSize) => {
+            setCourseLimit(newSize)
+            setCoursePage(1)
+          }}
+          itemName="courses"
+          loading={loading}
+        />
 
         {/* Enrolled Students Modal */}
         {selectedCourseForStudents && (

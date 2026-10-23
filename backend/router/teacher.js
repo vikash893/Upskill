@@ -12,6 +12,7 @@ const jwt = require('jsonwebtoken');
 const { authRateLimit } = require('../middleware/rateLimit');
 const { persistFile } = require('../config/cloudinary');
 const { delByPrefix } = require('../config/redis');
+const { getPaginationParams, buildPaginationMetadata } = require('../utils/pagination');
 
 const teacherRouter = express.Router();
 
@@ -146,15 +147,35 @@ teacherRouter.post("/teacher-login", authRateLimit, async (req, res) => {
 // GET ALL TEACHERS
 teacherRouter.get("/get-all-teachers", async (req, res) => {
     try {
-        const teachersList = await Teacher.find({}).select("-password").sort({ createdAt: -1 }).lean();
+        const { search } = req.query;
+        const filter = {};
+        if (search && search.trim()) {
+            const regex = new RegExp(search.trim(), "i");
+            filter.$or = [{ name: regex }, { email: regex }, { phone: regex }];
+        }
+
+        const isPaginated = req.query.page !== undefined || req.query.limit !== undefined;
+        const { page, limit, skip } = getPaginationParams(req, 10, 100);
+
+        let query = Teacher.find(filter).select("-password").sort({ createdAt: -1 });
+        if (isPaginated) {
+            query = query.skip(skip).limit(limit);
+        }
+
+        const [teachersList, totalCount] = await Promise.all([
+            query.lean(),
+            Teacher.countDocuments(filter)
+        ]);
+
         const formatted = teachersList.map(t => ({
             ...t,
             photo: t.photo ? t.photo.replace(/\\/g, "/") : null
         }));
         return res.status(200).json({
             message: "Teachers fetched successfully",
-            total: formatted.length,
-            teachers: formatted
+            total: totalCount,
+            teachers: formatted,
+            pagination: buildPaginationMetadata(totalCount, page, isPaginated ? limit : (totalCount || 1))
         });
     } catch (error) {
         console.log("GET ALL TEACHERS ERROR:", error);

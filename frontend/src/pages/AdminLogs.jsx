@@ -2,34 +2,57 @@ import { useEffect, useState } from 'react'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import Skeleton from '../components/Skeleton'
+import Pagination from '../components/Pagination'
 
 export default function AdminLogs() {
   const { session } = useAuth()
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
-  const [pages, setPages] = useState(1)
-  const [total, setTotal] = useState(0)
+  const [limit, setLimit] = useState(25)
   const [search, setSearch] = useState('')
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    pageSize: 25,
+    totalRecords: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  })
 
-  const fetchLogs = (p = 1) => {
+  const fetchLogs = () => {
     setLoading(true)
-    request(`/admin/logs?page=${p}&limit=30`, {
+    const params = new URLSearchParams()
+    params.set('page', String(page))
+    params.set('limit', String(limit))
+    if (search.trim()) params.set('search', search.trim())
+
+    request(`/admin/logs?${params.toString()}`, {
       headers: { Authorization: `Bearer ${session.token}` },
     })
       .then((data) => {
         setLogs(data.logs || [])
-        setPages(data.pages || 1)
-        setTotal(data.total || 0)
-        setPage(data.page || 1)
+        if (data.pagination) {
+          setPagination(data.pagination)
+        } else {
+          const tot = data.total || (data.logs ? data.logs.length : 0)
+          setPagination({
+            currentPage: page,
+            pageSize: limit,
+            totalRecords: tot,
+            totalPages: data.pages || Math.ceil(tot / limit) || 1,
+            hasNextPage: page * limit < tot,
+            hasPreviousPage: page > 1,
+          })
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
-    fetchLogs(page)
-  }, [page])
+    fetchLogs()
+  }, [page, limit, search])
 
   const handleClear = async () => {
     if (!window.confirm('Clear all system activity logs?')) return
@@ -38,15 +61,12 @@ export default function AdminLogs() {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${session.token}` },
       })
-      fetchLogs(1)
+      setPage(1)
+      fetchLogs()
     } catch (err) {
       alert(err.message)
     }
   }
-
-  const filtered = search.trim()
-    ? logs.filter((l) => l.email?.toLowerCase().includes(search.toLowerCase()) || l.path?.toLowerCase().includes(search.toLowerCase()))
-    : logs
 
   return (
     <main>
@@ -57,7 +77,7 @@ export default function AdminLogs() {
             <h2>Audit Trail & Activity Logs</h2>
           </div>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <span style={{ font: '11px var(--mono)', color: 'var(--muted)' }}>{total} total records</span>
+            <span style={{ font: '11px var(--mono)', color: 'var(--muted)' }}>{pagination.totalRecords} total records</span>
             <button className="outline-button" style={{ borderColor: '#c0392b', color: '#c0392b', fontSize: '11px', padding: '6px 12px' }} onClick={handleClear}>
               Clear Logs
             </button>
@@ -66,15 +86,18 @@ export default function AdminLogs() {
 
         <input
           type="text"
-          placeholder="Filter by user email or path..."
+          placeholder="Filter by user email, role, or path..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value)
+            setPage(1)
+          }}
           style={{ width: '100%', maxWidth: '400px', padding: '12px', border: '1px solid var(--line)', background: '#FFFFFF', outlineColor: 'var(--orange)', marginBottom: '20px' }}
         />
 
         {loading ? (
           <Skeleton variant="table" count={6} label="Loading audit logs" />
-        ) : filtered.length === 0 ? (
+        ) : logs.length === 0 ? (
           <div className="empty-state">No activity logs found.</div>
         ) : (
           <>
@@ -90,7 +113,7 @@ export default function AdminLogs() {
                 <span>TIMESTAMP</span>
               </div>
 
-              {filtered.map((log) => {
+              {logs.map((log) => {
                 const isSuccess = log.statusCode >= 200 && log.statusCode < 300
                 const isError = log.statusCode >= 400
 
@@ -141,18 +164,17 @@ export default function AdminLogs() {
               })}
             </div>
 
-            {/* Pagination */}
-            {pages > 1 && (
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '20px' }}>
-                <button className="outline-button" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-                  ← Previous
-                </button>
-                <span style={{ alignSelf: 'center', font: '11px var(--mono)' }}>Page {page} of {pages}</span>
-                <button className="outline-button" disabled={page >= pages} onClick={() => setPage(page + 1)}>
-                  Next →
-                </button>
-              </div>
-            )}
+            <Pagination
+              pagination={pagination}
+              onPageChange={setPage}
+              onPageSizeChange={(newSize) => {
+                setLimit(newSize)
+                setPage(1)
+              }}
+              pageSizeOptions={[10, 25, 50, 100]}
+              itemName="logs"
+              loading={loading}
+            />
           </>
         )}
       </section>

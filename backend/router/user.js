@@ -2,10 +2,9 @@ const express = require('express');
 const authMiddleware = require('../middleware/authMiddleware');
 const admin = require('../models/admin');
 const User = require('../models/user');
-
+const { getPaginationParams, buildPaginationMetadata } = require('../utils/pagination');
 
 const adminUserRouter = express.Router(); 
-
 
 // getAllUser , getUserById , UpdateUserById , deleteUserById 
 adminUserRouter.get("/get-alluser" , authMiddleware , async(req , res)=> {
@@ -26,19 +25,36 @@ adminUserRouter.get("/get-alluser" , authMiddleware , async(req , res)=> {
             })
         }
 
+        const { search } = req.query;
+        const filter = {};
+        if (search && search.trim()) {
+            const regex = new RegExp(search.trim(), "i");
+            filter.$or = [{ name: regex }, { email: regex }, { phone: regex }];
+        }
 
-        const allUsers = await User.find().select("-password").sort({ createdAt: -1 }); 
-        const formatted = allUsers.map(u => {
-            const obj = u.toObject();
-            return {
-                ...obj,
-                photo: obj.photo ? obj.photo.replace(/\\/g, "/") : null
-            };
-        });
+        const isPaginated = req.query.page !== undefined || req.query.limit !== undefined;
+        const { page, limit, skip } = getPaginationParams(req, 10, 100);
+
+        let query = User.find(filter).select("-password").sort({ createdAt: -1 });
+        if (isPaginated) {
+            query = query.skip(skip).limit(limit);
+        }
+
+        const [allUsers, totalCount] = await Promise.all([
+            query.lean(),
+            User.countDocuments(filter)
+        ]);
+
+        const formatted = allUsers.map(u => ({
+            ...u,
+            photo: u.photo ? u.photo.replace(/\\/g, "/") : null
+        }));
 
         res.status(200).json({
-            user : formatted
-        })
+            user: formatted,
+            total: totalCount,
+            pagination: buildPaginationMetadata(totalCount, page, isPaginated ? limit : (totalCount || 1))
+        });
     } catch (error) {
         console.log(error);
         res.status(500).json({

@@ -10,6 +10,7 @@ const requireRole = require('../middleware/roleMiddleware');
 const { contactRateLimit } = require('../middleware/rateLimit');
 const { getCache, setCache } = require('../config/redis');
 const { publishKafkaEvent, getAuditLogTopic } = require('../config/kafka');
+const { getPaginationParams, buildPaginationMetadata } = require('../utils/pagination');
 
 // 1. PUBLIC: Submit contact form query (Rate Limited)
 router.post('/contact/submit', contactRateLimit, async (req, res) => {
@@ -109,7 +110,7 @@ router.get('/public/platform-stats', async (req, res) => {
 // 3. ADMIN: Get all user inquiries with filter and search
 router.get('/admin/inquiries', authMiddleware, requireRole('ADMIN'), async (req, res) => {
   try {
-    const { status, search, limit = 50, page = 1 } = req.query;
+    const { status, search } = req.query;
     const filter = {};
 
     if (status && status !== 'all') {
@@ -126,12 +127,12 @@ router.get('/admin/inquiries', authMiddleware, requireRole('ADMIN'), async (req,
       ];
     }
 
-    const skip = (Number(page) - 1) * Number(limit);
+    const { page, limit, skip } = getPaginationParams(req, 10, 100);
     const [inquiries, totalCount, unreadCount] = await Promise.all([
       Contact.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(Number(limit))
+        .limit(limit)
         .lean(),
       Contact.countDocuments(filter),
       Contact.countDocuments({ status: 'unread' }),
@@ -142,8 +143,9 @@ router.get('/admin/inquiries', authMiddleware, requireRole('ADMIN'), async (req,
       inquiries,
       totalCount,
       unreadCount,
-      currentPage: Number(page),
-      totalPages: Math.ceil(totalCount / Number(limit)) || 1,
+      currentPage: page,
+      totalPages: Math.ceil(totalCount / limit) || 1,
+      pagination: buildPaginationMetadata(totalCount, page, limit),
     });
   } catch (error) {
     console.error('Admin get inquiries error:', error);

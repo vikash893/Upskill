@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
 import Skeleton from '../../components/Skeleton'
+import Pagination from '../../components/Pagination'
 
 const PRESET_BRANCHES = ['All Branches', 'B.Tech', 'BCA', 'BBA', 'MCA', 'MBA', 'B.Sc', 'B.Com']
 const SOURCE_PLATFORMS = ['All', 'LinkedIn', 'Instagram', 'Indeed', 'Unstop', 'Naukri', 'Other']
@@ -20,6 +21,16 @@ export default function StudentJobs() {
   const [filterType, setFilterType] = useState('all') // 'all' | 'job' | 'internship'
   const [filterBranch, setFilterBranch] = useState('All Branches')
   const [filterPlatform, setFilterPlatform] = useState('All')
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    pageSize: 10,
+    totalRecords: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  })
 
   // Expanded descriptions map
   const [expandedMap, setExpandedMap] = useState({})
@@ -33,9 +44,24 @@ export default function StudentJobs() {
       if (filterBranch !== 'All Branches') params.set('branch', filterBranch)
       if (filterPlatform !== 'All') params.set('source', filterPlatform)
       if (search.trim()) params.set('search', search.trim())
+      params.set('page', String(page))
+      params.set('limit', String(limit))
 
       const data = await request(`/jobs?${params.toString()}`, { headers })
       setJobs(data.jobs || [])
+      if (data.pagination) {
+        setPagination(data.pagination)
+      } else {
+        const tot = data.total || (data.jobs ? data.jobs.length : 0)
+        setPagination({
+          currentPage: page,
+          pageSize: limit,
+          totalRecords: tot,
+          totalPages: Math.ceil(tot / limit) || 1,
+          hasNextPage: page * limit < tot,
+          hasPreviousPage: page > 1,
+        })
+      }
     } catch (err) {
       setError(err.message || 'Failed to load jobs and internships')
     } finally {
@@ -45,10 +71,11 @@ export default function StudentJobs() {
 
   useEffect(() => {
     fetchJobs()
-  }, [filterType, filterBranch, filterPlatform])
+  }, [filterType, filterBranch, filterPlatform, page, limit])
 
   const handleSearchSubmit = (e) => {
     e.preventDefault()
+    setPage(1)
     fetchJobs()
   }
 
@@ -100,25 +127,34 @@ export default function StudentJobs() {
             type="button"
             className={filterType === 'all' ? 'primary-button' : 'outline-button'}
             style={{ fontSize: '12px', padding: '9px 18px' }}
-            onClick={() => setFilterType('all')}
+            onClick={() => {
+              setFilterType('all')
+              setPage(1)
+            }}
           >
-            All Opportunities ({counts.total})
+            All Opportunities ({pagination.totalRecords})
           </button>
           <button
             type="button"
             className={filterType === 'job' ? 'primary-button' : 'outline-button'}
             style={{ fontSize: '12px', padding: '9px 18px' }}
-            onClick={() => setFilterType('job')}
+            onClick={() => {
+              setFilterType('job')
+              setPage(1)
+            }}
           >
-            💼 Full-Time Jobs ({counts.jobs})
+            💼 Full-Time Jobs
           </button>
           <button
             type="button"
             className={filterType === 'internship' ? 'primary-button' : 'outline-button'}
             style={{ fontSize: '12px', padding: '9px 18px' }}
-            onClick={() => setFilterType('internship')}
+            onClick={() => {
+              setFilterType('internship')
+              setPage(1)
+            }}
           >
-            🎓 Internships ({counts.internships})
+            🎓 Internships
           </button>
         </div>
 
@@ -164,7 +200,10 @@ export default function StudentJobs() {
                   <button
                     key={branch}
                     type="button"
-                    onClick={() => setFilterBranch(branch)}
+                    onClick={() => {
+                      setFilterBranch(branch)
+                      setPage(1)
+                    }}
                     style={{
                       padding: '6px 14px',
                       borderRadius: '20px',
@@ -396,6 +435,17 @@ export default function StudentJobs() {
             })}
           </div>
         )}
+
+        <Pagination
+          pagination={pagination}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setLimit(newSize)
+            setPage(1)
+          }}
+          itemName="opportunities"
+          loading={loading}
+        />
       </section>
     </main>
   )

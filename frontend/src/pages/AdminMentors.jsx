@@ -3,6 +3,7 @@ import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import { mediaUrl } from '../utils/mediaUrl'
 import Skeleton from '../components/Skeleton'
+import Pagination from '../components/Pagination'
 
 export default function AdminMentors() {
   const { session } = useAuth()
@@ -26,15 +27,47 @@ export default function AdminMentors() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    pageSize: 10,
+    totalRecords: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  })
 
   const fetchMentors = () => {
     setLoading(true)
-    request('/admin/mentors', { headers })
-      .then((d) => setMentors(d.mentors || []))
+    const params = new URLSearchParams()
+    params.set('page', String(page))
+    params.set('limit', String(limit))
+    if (search.trim()) params.set('search', search.trim())
+
+    const handleData = (d) => {
+      setMentors(d.mentors || [])
+      if (d.pagination) {
+        setPagination(d.pagination)
+      } else {
+        const tot = d.total || (d.mentors ? d.mentors.length : 0)
+        setPagination({
+          currentPage: page,
+          pageSize: limit,
+          totalRecords: tot,
+          totalPages: Math.ceil(tot / limit) || 1,
+          hasNextPage: page * limit < tot,
+          hasPreviousPage: page > 1,
+        })
+      }
+    }
+
+    request(`/admin/mentors?${params.toString()}`, { headers })
+      .then(handleData)
       .catch(() => {
         // Fallback to public endpoint if needed
-        request('/mentors')
-          .then((d) => setMentors(d.mentors || []))
+        request(`/mentors?${params.toString()}`)
+          .then(handleData)
           .catch((err) => setMessage({ type: 'error', text: err.message }))
       })
       .finally(() => setLoading(false))
@@ -42,7 +75,7 @@ export default function AdminMentors() {
 
   useEffect(() => {
     fetchMentors()
-  }, [])
+  }, [page, limit, search])
 
   const resetForm = () => {
     setForm({
@@ -154,17 +187,6 @@ export default function AdminMentors() {
       setMessage({ type: 'error', text: err.message })
     }
   }
-
-  const filteredMentors = mentors.filter((m) => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return (
-      m.name?.toLowerCase().includes(q) ||
-      m.role?.toLowerCase().includes(q) ||
-      m.company?.toLowerCase().includes(q) ||
-      m.bio?.toLowerCase().includes(q)
-    )
-  })
 
   return (
     <main>
@@ -380,7 +402,10 @@ export default function AdminMentors() {
             type="text"
             placeholder="Search mentors by name, role, company..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
             style={{
               padding: '10px 14px',
               border: '1px solid var(--line)',
@@ -392,14 +417,14 @@ export default function AdminMentors() {
             }}
           />
           <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
-            Showing <strong>{filteredMentors.length}</strong> {filteredMentors.length === 1 ? 'mentor' : 'mentors'}
+            Showing <strong>{pagination.totalRecords}</strong> {pagination.totalRecords === 1 ? 'mentor' : 'mentors'}
           </div>
         </div>
 
         {/* Mentors List */}
         {loading ? (
           <Skeleton variant="rows" count={4} label="Loading mentors" />
-        ) : filteredMentors.length === 0 ? (
+        ) : mentors.length === 0 ? (
           <div
             style={{
               textAlign: 'center',
@@ -420,7 +445,7 @@ export default function AdminMentors() {
           </div>
         ) : (
           <div style={{ display: 'grid', gap: '16px' }}>
-            {filteredMentors.map((m) => {
+            {mentors.map((m) => {
               const photo = mediaUrl(m.photo)
               return (
                 <div
@@ -595,6 +620,17 @@ export default function AdminMentors() {
             })}
           </div>
         )}
+
+        <Pagination
+          pagination={pagination}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setLimit(newSize)
+            setPage(1)
+          }}
+          itemName="mentors"
+          loading={loading}
+        />
       </section>
     </main>
   )

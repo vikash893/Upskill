@@ -9,6 +9,7 @@ const authMiddleware = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
 const { persistFile } = require("../config/cloudinary");
 const createCertificatePdf = require("../services/certificatePdf");
+const { getPaginationParams, buildPaginationMetadata } = require("../utils/pagination");
 
 const certificateRouter = express.Router();
 const signatureUpload = upload.fields([
@@ -103,13 +104,39 @@ certificateRouter.get(
     requireRole("ADMIN"),
     async (req, res) => {
         try {
-            const certificates = await Certificate.find({})
-                .select("certificate_id student_name student_email course_title issue_date issuance_type issued_by createdAt")
-                .sort({ issue_date: -1 })
-                .limit(500)
-                .lean();
+            const { search } = req.query;
+            const filter = {};
+            if (search && search.trim()) {
+                const regex = new RegExp(search.trim(), "i");
+                filter.$or = [
+                    { certificate_id: regex },
+                    { student_name: regex },
+                    { student_email: regex },
+                    { course_title: regex }
+                ];
+            }
 
-            return res.status(200).json({ certificates });
+            const isPaginated = req.query.page !== undefined || req.query.limit !== undefined;
+            const { page, limit, skip } = getPaginationParams(req, 10, 100);
+
+            let query = Certificate.find(filter)
+                .select("certificate_id student_name student_email course_title issue_date issuance_type issued_by createdAt")
+                .sort({ issue_date: -1 });
+
+            if (isPaginated) {
+                query = query.skip(skip).limit(limit);
+            }
+
+            const [certificates, totalCount] = await Promise.all([
+                query.lean(),
+                Certificate.countDocuments(filter)
+            ]);
+
+            return res.status(200).json({
+                certificates,
+                total: totalCount,
+                pagination: buildPaginationMetadata(totalCount, page, isPaginated ? limit : (totalCount || 1))
+            });
         } catch (error) {
             console.log("GET ADMIN CERTIFICATES ERROR:", error);
             return res.status(500).json({ error: "Internal server error" });

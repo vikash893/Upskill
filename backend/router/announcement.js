@@ -11,6 +11,7 @@ const upload = require("../config/multer");
 const { persistFile, isConfigured } = require("../config/cloudinary");
 const authMiddleware = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
+const { getPaginationParams, buildPaginationMetadata } = require("../utils/pagination");
 
 const announcementRouter = express.Router();
 
@@ -66,6 +67,19 @@ announcementRouter.get("/announcements/mine", authMiddleware, async (req, res) =
     try {
         const filter = await getAccessibleFilter(req.user);
         const email = req.user.email.toLowerCase();
+        const isPaginated = req.query.page !== undefined || req.query.limit !== undefined;
+        const { page, limit, skip } = getPaginationParams(req, 15, 100);
+
+        const announcementPipeline = [
+            { $sort: { createdAt: -1 } }
+        ];
+        if (isPaginated) {
+            announcementPipeline.push({ $skip: skip }, { $limit: limit });
+        } else {
+            announcementPipeline.push({ $limit: 100 });
+        }
+        announcementPipeline.push({ $project: { user_read: 0 } });
+
         const [summary] = await Announcement.aggregate([
             { $match: filter },
             {
@@ -93,11 +107,7 @@ announcementRouter.get("/announcements/mine", authMiddleware, async (req, res) =
                 $facet: {
                     total: [{ $count: "count" }],
                     unread: [{ $match: { is_read: false } }, { $count: "count" }],
-                    announcements: [
-                        { $sort: { createdAt: -1 } },
-                        { $limit: 100 },
-                        { $project: { user_read: 0 } }
-                    ]
+                    announcements: announcementPipeline
                 }
             }
         ]);
@@ -107,7 +117,8 @@ announcementRouter.get("/announcements/mine", authMiddleware, async (req, res) =
         return res.status(200).json({
             unread_count: unreadCount,
             total,
-            announcements: summary?.announcements || []
+            announcements: summary?.announcements || [],
+            pagination: buildPaginationMetadata(total, page, isPaginated ? limit : (total || 1))
         });
     } catch (error) {
         console.log("GET ANNOUNCEMENTS ERROR:", error);

@@ -5,6 +5,7 @@ const Course = require("../models/courses");
 const authMiddleware = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
 const { delCache, delByPrefix } = require("../config/redis");
+const { getPaginationParams, buildPaginationMetadata } = require("../utils/pagination");
 const {
     persistFile,
     isConfigured
@@ -632,41 +633,45 @@ courseRouter.get(
 
 courseRouter.get(
     "/admin/all-courses",
-
     authMiddleware,
     requireRole("ADMIN"),
-
     async (req, res) => {
         try {
+            const { search, course_type } = req.query;
+            const filter = {};
 
-            const allCourses =
-                await Course
-                    .find({})
-                    .sort({ createdAt: -1 })
-                    .lean();
+            if (course_type && course_type !== "all") {
+                filter.course_type = course_type;
+            }
 
+            if (search && search.trim()) {
+                const regex = new RegExp(search.trim(), "i");
+                filter.$or = [{ course_title: regex }, { course_description: regex }, { course_id: regex }];
+            }
+
+            const isPaginated = req.query.page !== undefined || req.query.limit !== undefined;
+            const { page, limit, skip } = getPaginationParams(req, 10, 100);
+
+            let query = Course.find(filter).sort({ createdAt: -1 });
+            if (isPaginated) {
+                query = query.skip(skip).limit(limit);
+            }
+
+            const [allCourses, totalCount] = await Promise.all([
+                query.lean(),
+                Course.countDocuments(filter)
+            ]);
 
             return res.status(200).json({
-                message:
-                    "Courses fetched successfully",
-
-                total:
-                    allCourses.length,
-
-                courses:
-                    allCourses
+                message: "Courses fetched successfully",
+                total: totalCount,
+                courses: allCourses,
+                pagination: buildPaginationMetadata(totalCount, page, isPaginated ? limit : (totalCount || 1))
             });
-
         } catch (error) {
-
-            console.log(
-                "ADMIN GET COURSES ERROR:",
-                error
-            );
-
+            console.log("ADMIN GET COURSES ERROR:", error);
             return res.status(500).json({
-                error:
-                    "Internal server error"
+                error: "Internal server error"
             });
         }
     }

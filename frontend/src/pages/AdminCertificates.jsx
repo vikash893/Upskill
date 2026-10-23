@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import Skeleton from '../components/Skeleton'
+import Pagination from '../components/Pagination'
 
 const formatDate = (value) => new Date(value).toLocaleDateString(undefined, {
   day: '2-digit',
@@ -26,24 +27,57 @@ export default function AdminCertificates() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [certPage, setCertPage] = useState(1)
+  const [certLimit, setCertLimit] = useState(10)
+  const [certSearch, setCertSearch] = useState('')
+  const [certLoading, setCertLoading] = useState(false)
+  const [certPagination, setCertPagination] = useState({
+    currentPage: 1,
+    pageSize: 10,
+    totalRecords: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  })
 
   const fetchCertificates = async () => {
-    const data = await request('/certificates/admin', { headers })
-    setCertificates(data.certificates || [])
+    setCertLoading(true)
+    try {
+      const params = new URLSearchParams()
+      params.set('page', String(certPage))
+      params.set('limit', String(certLimit))
+      if (certSearch.trim()) params.set('search', certSearch.trim())
+      const data = await request(`/certificates/admin?${params.toString()}`, { headers })
+      setCertificates(data.certificates || [])
+      if (data.pagination) {
+        setCertPagination(data.pagination)
+      } else {
+        const tot = data.total || (data.certificates ? data.certificates.length : 0)
+        setCertPagination({
+          currentPage: certPage,
+          pageSize: certLimit,
+          totalRecords: tot,
+          totalPages: Math.ceil(tot / certLimit) || 1,
+          hasNextPage: certPage * certLimit < tot,
+          hasPreviousPage: certPage > 1,
+        })
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setCertLoading(false)
+    }
   }
 
   useEffect(() => {
-    const requestHeaders = { Authorization: `Bearer ${session.token}` }
-    Promise.all([
-      request('/admin/all-courses', { headers: requestHeaders }),
-      request('/certificates/admin', { headers: requestHeaders }),
-    ])
-      .then(([courseData, certificateData]) => {
-        setCourses(courseData.courses || [])
-        setCertificates(certificateData.certificates || [])
-      })
+    request('/admin/all-courses', { headers: { Authorization: `Bearer ${session.token}` } })
+      .then((courseData) => setCourses(courseData.courses || []))
       .catch((err) => setError(err.message))
   }, [session.token])
+
+  useEffect(() => {
+    fetchCertificates()
+  }, [certPage, certLimit, certSearch])
 
   const loadRoster = async (selectedCourseId) => {
     setCourseId(selectedCourseId)
@@ -277,7 +311,29 @@ export default function AdminCertificates() {
               <p className="eyebrow">DISTRIBUTION LOG</p>
               <h3>Recently issued</h3>
             </div>
+            <span className="certificate-count">{certPagination.totalRecords} total certificates</span>
           </div>
+
+          <input
+            type="text"
+            placeholder="Search issued certificates by student name, email, or course..."
+            value={certSearch}
+            onChange={(e) => {
+              setCertSearch(e.target.value)
+              setCertPage(1)
+            }}
+            style={{
+              width: '100%',
+              maxWidth: '380px',
+              padding: '10px 12px',
+              border: '1px solid var(--line)',
+              background: '#FFFFFF',
+              marginTop: '14px',
+              marginBottom: '10px',
+              fontSize: '12px',
+            }}
+          />
+
           {certificates.length === 0 ? (
             <div className="empty-state">No certificates have been issued yet.</div>
           ) : (
@@ -299,6 +355,17 @@ export default function AdminCertificates() {
               ))}
             </div>
           )}
+
+          <Pagination
+            pagination={certPagination}
+            onPageChange={setCertPage}
+            onPageSizeChange={(newSize) => {
+              setCertLimit(newSize)
+              setCertPage(1)
+            }}
+            itemName="certificates"
+            loading={certLoading}
+          />
         </section>
       </section>
 

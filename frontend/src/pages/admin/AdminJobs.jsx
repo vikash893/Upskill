@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
 import Skeleton from '../../components/Skeleton'
+import Pagination from '../../components/Pagination'
 
 const PRESET_BRANCHES = ['All Branches', 'B.Tech', 'BCA', 'BBA', 'MCA', 'MBA', 'B.Sc', 'B.Com', 'Diploma']
 const SOURCE_PLATFORMS = ['LinkedIn', 'Instagram', 'Indeed', 'Unstop', 'Naukri', 'Company Portal', 'Telegram', 'Other']
@@ -44,6 +45,16 @@ export default function AdminJobs() {
   const [filterBranch, setFilterBranch] = useState('all')
   const [filterPlatform, setFilterPlatform] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    pageSize: 10,
+    totalRecords: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  })
 
   const fetchJobs = async () => {
     setLoading(true)
@@ -55,10 +66,25 @@ export default function AdminJobs() {
       if (filterPlatform !== 'all') params.set('source', filterPlatform)
       if (filterStatus !== 'all') params.set('status', filterStatus)
       if (search.trim()) params.set('search', search.trim())
+      params.set('page', String(page))
+      params.set('limit', String(limit))
 
       const data = await request(`/jobs?${params.toString()}`, { headers })
       setJobs(data.jobs || [])
       if (data.stats) setStats(data.stats)
+      if (data.pagination) {
+        setPagination(data.pagination)
+      } else {
+        const tot = data.total || (data.jobs ? data.jobs.length : 0)
+        setPagination({
+          currentPage: page,
+          pageSize: limit,
+          totalRecords: tot,
+          totalPages: Math.ceil(tot / limit) || 1,
+          hasNextPage: page * limit < tot,
+          hasPreviousPage: page > 1,
+        })
+      }
     } catch (err) {
       setError(err.message || 'Failed to load jobs and internships')
     } finally {
@@ -68,10 +94,11 @@ export default function AdminJobs() {
 
   useEffect(() => {
     fetchJobs()
-  }, [filterType, filterBranch, filterPlatform, filterStatus])
+  }, [filterType, filterBranch, filterPlatform, filterStatus, page, limit])
 
   const handleSearchSubmit = (e) => {
     e.preventDefault()
+    setPage(1)
     fetchJobs()
   }
 
@@ -499,7 +526,10 @@ export default function AdminJobs() {
               <label style={{ display: 'block', fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>Type</label>
               <select
                 value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
+                onChange={(e) => {
+                  setFilterType(e.target.value)
+                  setPage(1)
+                }}
                 style={{ width: '100%', padding: '10px', border: '1px solid var(--line)', borderRadius: '4px', background: '#fff' }}
               >
                 <option value="all">All Types (Jobs & Internships)</option>
@@ -512,7 +542,10 @@ export default function AdminJobs() {
               <label style={{ display: 'block', fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>Student Branch</label>
               <select
                 value={filterBranch}
-                onChange={(e) => setFilterBranch(e.target.value)}
+                onChange={(e) => {
+                  setFilterBranch(e.target.value)
+                  setPage(1)
+                }}
                 style={{ width: '100%', padding: '10px', border: '1px solid var(--line)', borderRadius: '4px', background: '#fff' }}
               >
                 <option value="all">All Student Branches</option>
@@ -528,7 +561,10 @@ export default function AdminJobs() {
               <label style={{ display: 'block', fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>Source Platform</label>
               <select
                 value={filterPlatform}
-                onChange={(e) => setFilterPlatform(e.target.value)}
+                onChange={(e) => {
+                  setFilterPlatform(e.target.value)
+                  setPage(1)
+                }}
                 style={{ width: '100%', padding: '10px', border: '1px solid var(--line)', borderRadius: '4px', background: '#fff' }}
               >
                 <option value="all">All Platforms</option>
@@ -544,7 +580,10 @@ export default function AdminJobs() {
               <label style={{ display: 'block', fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>Status</label>
               <select
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
+                onChange={(e) => {
+                  setFilterStatus(e.target.value)
+                  setPage(1)
+                }}
                 style={{ width: '100%', padding: '10px', border: '1px solid var(--line)', borderRadius: '4px', background: '#fff' }}
               >
                 <option value="all">All Statuses</option>
@@ -739,6 +778,17 @@ export default function AdminJobs() {
             })}
           </div>
         )}
+
+        <Pagination
+          pagination={pagination}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setLimit(newSize)
+            setPage(1)
+          }}
+          itemName="opportunities"
+          loading={loading}
+        />
       </section>
     </main>
   )

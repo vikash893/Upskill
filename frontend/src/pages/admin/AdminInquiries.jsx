@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
 import Skeleton from '../../components/Skeleton'
+import Pagination from '../../components/Pagination'
 
 export default function AdminInquiries() {
   const { session } = useAuth()
@@ -18,18 +19,43 @@ export default function AdminInquiries() {
   const [statusUpdate, setStatusUpdate] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    pageSize: 10,
+    totalRecords: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  })
 
   const fetchInquiries = async () => {
     setLoading(true)
     try {
-      let queryUrl = `/admin/inquiries?status=${statusFilter}`
-      if (search.trim()) {
-        queryUrl += `&search=${encodeURIComponent(search.trim())}`
-      }
-      const data = await request(queryUrl, { headers })
+      const params = new URLSearchParams()
+      if (statusFilter !== 'all') params.set('status', statusFilter)
+      if (search.trim()) params.set('search', search.trim())
+      params.set('page', String(page))
+      params.set('limit', String(limit))
+
+      const data = await request(`/admin/inquiries?${params.toString()}`, { headers })
       setInquiries(data.inquiries || [])
       setUnreadCount(data.unreadCount || 0)
       setTotalCount(data.totalCount || 0)
+      if (data.pagination) {
+        setPagination(data.pagination)
+      } else {
+        const tot = data.total || data.totalCount || (data.inquiries ? data.inquiries.length : 0)
+        setPagination({
+          currentPage: page,
+          pageSize: limit,
+          totalRecords: tot,
+          totalPages: Math.ceil(tot / limit) || 1,
+          hasNextPage: page * limit < tot,
+          hasPreviousPage: page > 1,
+        })
+      }
     } catch (err) {
       console.error('Fetch inquiries error:', err)
     } finally {
@@ -39,10 +65,11 @@ export default function AdminInquiries() {
 
   useEffect(() => {
     fetchInquiries()
-  }, [statusFilter])
+  }, [statusFilter, page, limit])
 
   const handleSearchSubmit = (e) => {
     e.preventDefault()
+    setPage(1)
     fetchInquiries()
   }
 
@@ -153,7 +180,10 @@ export default function AdminInquiries() {
           {['all', 'unread', 'read', 'in_progress', 'resolved'].map((st) => (
             <button
               key={st}
-              onClick={() => setStatusFilter(st)}
+              onClick={() => {
+                setStatusFilter(st)
+                setPage(1)
+              }}
               className={statusFilter === st ? 'primary-button' : 'outline-button'}
               style={{ fontSize: '11px', padding: '6px 14px', textTransform: 'capitalize' }}
             >
@@ -264,6 +294,17 @@ export default function AdminInquiries() {
           ))}
         </div>
       )}
+
+      <Pagination
+        pagination={pagination}
+        onPageChange={setPage}
+        onPageSizeChange={(newSize) => {
+          setLimit(newSize)
+          setPage(1)
+        }}
+        itemName="inquiries"
+        loading={loading}
+      />
 
       {/* DETAIL & REPLY MODAL */}
       {selectedInquiry && (

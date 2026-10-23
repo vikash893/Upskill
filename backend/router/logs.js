@@ -2,6 +2,7 @@ const express = require("express");
 const Logger = require("../models/logger");
 const authMiddleware = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
+const { getPaginationParams, buildPaginationMetadata } = require("../utils/pagination");
 
 const logsRouter = express.Router();
 
@@ -10,20 +11,26 @@ const logsRouter = express.Router();
 // ======================================================
 logsRouter.get("/admin/logs", authMiddleware, requireRole("ADMIN"), async (req, res) => {
     try {
-        const requestedPage = Number.parseInt(req.query.page, 10) || 1;
-        const requestedLimit = Number.parseInt(req.query.limit, 10) || 50;
-        const page = Math.max(1, requestedPage);
-        const limit = Math.min(100, Math.max(1, requestedLimit));
-        const skip = (page - 1) * limit;
+        const { search } = req.query;
+        const filter = {};
+        if (search && search.trim()) {
+            const regex = new RegExp(search.trim(), "i");
+            filter.$or = [{ email: regex }, { ip: regex }, { method: regex }, { path: regex }];
+        }
 
-        const total = await Logger.countDocuments();
-        const logs = await Logger.find().sort({ createdAt: -1 }).skip(skip).limit(limit);
+        const { page, limit, skip } = getPaginationParams(req, 25, 100);
+
+        const [total, logs] = await Promise.all([
+            Logger.countDocuments(filter),
+            Logger.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean()
+        ]);
 
         return res.status(200).json({
             total,
             page,
-            pages: Math.ceil(total / limit),
-            logs
+            pages: Math.ceil(total / limit) || 1,
+            logs,
+            pagination: buildPaginationMetadata(total, page, limit)
         });
     } catch (error) {
         console.log("GET LOGS ERROR:", error);

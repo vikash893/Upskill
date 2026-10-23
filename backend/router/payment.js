@@ -13,6 +13,7 @@ const { paymentRateLimit } = require("../middleware/rateLimit");
 const { delCache, delByPrefix } = require("../config/redis");
 const { publishKafkaEvent, getPaymentTopic } = require("../config/kafka");
 const { buildPaymentQuote } = require("../services/paymentQuote");
+const { getPaginationParams, buildPaginationMetadata } = require("../utils/pagination");
 const { verifyCheckoutSignature, verifyWebhookSignature, settlePaymentOrder } = require("../services/paymentSettlement");
 
 const paymentRouter = express.Router();
@@ -711,11 +712,25 @@ paymentRouter.get("/payment/order/:order_id", authMiddleware, paymentRateLimit, 
 paymentRouter.get("/payment/student-history", authMiddleware, requireRole("STUDENT"), async (req, res) => {
     try {
         const studentEmail = req.user.email;
-        const payments = await Payment.find({ student_email: studentEmail }).sort({ createdAt: -1 }).lean();
+        const filter = { student_email: studentEmail };
+
+        const isPaginated = req.query.page !== undefined || req.query.limit !== undefined;
+        const { page, limit, skip } = getPaginationParams(req, 10, 100);
+
+        let query = Payment.find(filter).sort({ createdAt: -1 });
+        if (isPaginated) {
+            query = query.skip(skip).limit(limit);
+        }
+
+        const [payments, totalCount] = await Promise.all([
+            query.lean(),
+            Payment.countDocuments(filter)
+        ]);
 
         return res.status(200).json({
-            total: payments.length,
-            payments
+            total: totalCount,
+            payments,
+            pagination: buildPaginationMetadata(totalCount, page, isPaginated ? limit : (totalCount || 1))
         });
     } catch (error) {
         console.log("STUDENT PAYMENT HISTORY ERROR:", error);
@@ -747,11 +762,23 @@ paymentRouter.get("/payment/all", authMiddleware, requireRole("ADMIN"), async (r
             ];
         }
 
-        const payments = await Payment.find(filter).sort({ createdAt: -1 }).lean();
+        const isPaginated = req.query.page !== undefined || req.query.limit !== undefined;
+        const { page, limit, skip } = getPaginationParams(req, 10, 100);
+
+        let query = Payment.find(filter).sort({ createdAt: -1 });
+        if (isPaginated) {
+            query = query.skip(skip).limit(limit);
+        }
+
+        const [payments, totalCount] = await Promise.all([
+            query.lean(),
+            Payment.countDocuments(filter)
+        ]);
 
         return res.status(200).json({
-            total: payments.length,
-            payments
+            total: totalCount,
+            payments,
+            pagination: buildPaginationMetadata(totalCount, page, isPaginated ? limit : (totalCount || 1))
         });
     } catch (error) {
         console.log("ADMIN GET PAYMENTS ERROR:", error);

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import AssignCourseModal from '../components/AssignCourseModal'
 import { mediaUrl } from '../utils/mediaUrl'
 import Skeleton from '../components/Skeleton'
+import Pagination from '../components/Pagination'
 
 export default function AdminTeachers() {
   const { session } = useAuth()
@@ -16,16 +17,47 @@ export default function AdminTeachers() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [selectedTeacherForAssignment, setSelectedTeacherForAssignment] = useState(null)
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [search, setSearch] = useState('')
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    pageSize: 10,
+    totalRecords: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  })
 
   const fetchTeachers = () => {
     setLoading(true)
-    request('/get-all-teachers')
-      .then((d) => setTeachers(d.teachers || []))
+    const params = new URLSearchParams()
+    params.set('page', String(page))
+    params.set('limit', String(limit))
+    if (search.trim()) params.set('search', search.trim())
+
+    request(`/get-all-teachers?${params.toString()}`)
+      .then((d) => {
+        setTeachers(d.teachers || [])
+        if (d.pagination) {
+          setPagination(d.pagination)
+        } else {
+          const tot = d.total || (d.teachers ? d.teachers.length : 0)
+          setPagination({
+            currentPage: page,
+            pageSize: limit,
+            totalRecords: tot,
+            totalPages: Math.ceil(tot / limit) || 1,
+            hasNextPage: page * limit < tot,
+            hasPreviousPage: page > 1,
+          })
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { fetchTeachers() }, [])
+  useEffect(() => { fetchTeachers() }, [page, limit, search])
 
   const addTeacher = async (e) => {
     e.preventDefault()
@@ -81,6 +113,26 @@ export default function AdminTeachers() {
         </div>
 
         {message && <p className="form-message" style={{ marginBottom: '20px' }}>{message}</p>}
+
+        <input
+          type="text"
+          placeholder="Search teachers by name, email, or phone..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value)
+            setPage(1)
+          }}
+          style={{
+            width: '100%',
+            maxWidth: '400px',
+            padding: '12px',
+            border: '1px solid var(--line)',
+            background: '#FFFFFF',
+            outlineColor: 'var(--orange)',
+            fontFamily: 'inherit',
+            marginBottom: '25px',
+          }}
+        />
 
         {/* Add Teacher Form (No initial course assignment input as requested) */}
         {showAdd && (
@@ -170,6 +222,17 @@ export default function AdminTeachers() {
             })}
           </div>
         )}
+
+        <Pagination
+          pagination={pagination}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setLimit(newSize)
+            setPage(1)
+          }}
+          itemName="teachers"
+          loading={loading}
+        />
 
         {/* Course Assignment Modal */}
         {selectedTeacherForAssignment && (

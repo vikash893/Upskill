@@ -2,6 +2,7 @@ const express = require("express");
 const Job = require("../models/job");
 const authMiddleware = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
+const { getPaginationParams, buildPaginationMetadata } = require("../utils/pagination");
 
 const jobRouter = express.Router();
 
@@ -71,20 +72,30 @@ jobRouter.get(
                 }
             }
 
-            const jobs = await Job.find(query).sort({ createdAt: -1 }).lean();
+            const isPaginated = req.query.page !== undefined || req.query.limit !== undefined;
+            const { page, limit, skip } = getPaginationParams(req, 10, 100);
 
-            // Overall stats
-            const totalJobs = await Job.countDocuments({ type: "job", status: "active" });
-            const totalInternships = await Job.countDocuments({ type: "internship", status: "active" });
+            let jobQuery = Job.find(query).sort({ createdAt: -1 });
+            if (isPaginated) {
+                jobQuery = jobQuery.skip(skip).limit(limit);
+            }
+
+            const [jobs, totalFilteredCount, totalJobs, totalInternships] = await Promise.all([
+                jobQuery.lean(),
+                Job.countDocuments(query),
+                Job.countDocuments({ type: "job", status: "active" }),
+                Job.countDocuments({ type: "internship", status: "active" })
+            ]);
 
             return res.status(200).json({
                 message: "Jobs fetched successfully",
-                total: jobs.length,
+                total: totalFilteredCount,
                 stats: {
                     total_jobs: totalJobs,
                     total_internships: totalInternships
                 },
-                jobs
+                jobs,
+                pagination: buildPaginationMetadata(totalFilteredCount, page, isPaginated ? limit : (totalFilteredCount || 1))
             });
         } catch (error) {
             console.error("GET JOBS ERROR:", error);

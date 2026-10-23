@@ -3,26 +3,56 @@ import { request } from '../../api/request'
 import { useAuth } from '../../context/AuthContext'
 import ReceiptModal from '../../components/ReceiptModal'
 import Skeleton from '../../components/Skeleton'
+import Pagination from '../../components/Pagination'
 
 export default function StudentPayments() {
   const { session } = useAuth()
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedReceipt, setSelectedReceipt] = useState(null)
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    pageSize: 10,
+    totalRecords: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  })
 
   const fetchPayments = () => {
     setLoading(true)
-    request('/payment/student-history', {
+    const params = new URLSearchParams()
+    params.set('page', String(page))
+    params.set('limit', String(limit))
+
+    request(`/payment/student-history?${params.toString()}`, {
       headers: { Authorization: `Bearer ${session.token}` },
     })
-      .then((data) => setPayments(data.payments || []))
+      .then((data) => {
+        setPayments(data.payments || [])
+        if (data.pagination) {
+          setPagination(data.pagination)
+        } else {
+          const tot = data.total || (data.payments ? data.payments.length : 0)
+          setPagination({
+            currentPage: page,
+            pageSize: limit,
+            totalRecords: tot,
+            totalPages: Math.ceil(tot / limit) || 1,
+            hasNextPage: page * limit < tot,
+            hasPreviousPage: page > 1,
+          })
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
     fetchPayments()
-  }, [])
+  }, [page, limit])
 
   return (
     <div>
@@ -31,7 +61,7 @@ export default function StudentPayments() {
           <p className="eyebrow">BILLING & INVOICES</p>
           <h2>Payment History & Plan Subscriptions</h2>
         </div>
-        <span style={{ font: '11px var(--mono)', color: 'var(--muted)' }}>{payments.length} total records</span>
+        <span style={{ font: '11px var(--mono)', color: 'var(--muted)' }}>{pagination.totalRecords} total records</span>
       </div>
 
       {loading ? (
@@ -173,6 +203,17 @@ export default function StudentPayments() {
           })}
         </div>
       )}
+
+      <Pagination
+        pagination={pagination}
+        onPageChange={setPage}
+        onPageSizeChange={(newSize) => {
+          setLimit(newSize)
+          setPage(1)
+        }}
+        itemName="payments"
+        loading={loading}
+      />
 
       {/* Digital Receipt Modal */}
       {selectedReceipt && (

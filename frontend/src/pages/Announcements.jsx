@@ -3,6 +3,7 @@ import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import { mediaUrl } from '../utils/mediaUrl'
 import Skeleton from '../components/Skeleton'
+import Pagination from '../components/Pagination'
 
 const audienceNames = { students: 'All students', teachers: 'All teachers', everyone: 'Everyone' }
 
@@ -22,38 +23,60 @@ export default function Announcements() {
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
   const fileInputRef = useRef(null)
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    pageSize: 10,
+    totalRecords: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  })
 
   const loadAnnouncements = async () => {
-    const data = await request('/announcements/mine', { headers })
-    setAnnouncements(data.announcements || [])
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      params.set('page', String(page))
+      params.set('limit', String(limit))
+      const data = await request(`/announcements/mine?${params.toString()}`, { headers })
+      setAnnouncements(data.announcements || [])
+      if (data.pagination) {
+        setPagination(data.pagination)
+      } else {
+        const tot = data.total || (data.announcements ? data.announcements.length : 0)
+        setPagination({
+          currentPage: page,
+          pageSize: limit,
+          totalRecords: tot,
+          totalPages: Math.ceil(tot / limit) || 1,
+          hasNextPage: page * limit < tot,
+          hasPreviousPage: page > 1,
+        })
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
-    let active = true
-    const requests = [
-      request('/announcements/mine', { headers: { Authorization: `Bearer ${session.token}` } }),
-      session.role === 'ADMIN'
-        ? request('/admin/all-courses', { headers: { Authorization: `Bearer ${session.token}` } })
-        : session.role === 'TEACHER'
-          ? request('/teacher/my-courses', { headers: { Authorization: `Bearer ${session.token}` } })
-          : Promise.resolve({ courses: [] }),
-    ]
-
-    Promise.all(requests)
-      .then(([announcementData, courseData]) => {
-        if (!active) return
-        setAnnouncements(announcementData.announcements || [])
-        setCourses(courseData.courses || [])
-      })
-      .catch((loadError) => {
-        if (active) setError(loadError.message)
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-
-    return () => { active = false }
+    if (session.role === 'ADMIN') {
+      request('/admin/all-courses', { headers: { Authorization: `Bearer ${session.token}` } })
+        .then((d) => setCourses(d.courses || []))
+        .catch(() => {})
+    } else if (session.role === 'TEACHER') {
+      request('/teacher/my-courses', { headers: { Authorization: `Bearer ${session.token}` } })
+        .then((d) => setCourses(d.courses || []))
+        .catch(() => {})
+    }
   }, [session.token, session.role])
+
+  useEffect(() => {
+    loadAnnouncements()
+  }, [page, limit])
 
   const handleImageSelect = (e) => {
     const file = e.target.files?.[0]
@@ -307,6 +330,17 @@ export default function Announcements() {
             })}
           </div>
         )}
+
+        <Pagination
+          pagination={pagination}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setLimit(newSize)
+            setPage(1)
+          }}
+          itemName="announcements"
+          loading={loading}
+        />
       </section>
 
       <style>{`
