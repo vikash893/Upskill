@@ -7,6 +7,7 @@ import About from './pages/About'
 import Courses from './pages/Courses'
 import Mentors from './pages/Mentors'
 import Contact from './pages/Contact'
+import VerifyCertificate from './pages/VerifyCertificate'
 import './App.css'
 
 function ScrollToTop() {
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/courses" element={<Courses />} />
         <Route path="/mentors" element={<Mentors />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/verify-certificate" element={<VerifyCertificate />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Footer />

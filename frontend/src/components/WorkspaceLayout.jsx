@@ -40,6 +40,7 @@ function getNavSections(role) {
         items: [
           { label: 'Account Profile', path: '/profile' },
           { label: 'Certificates', path: '/student/certificates' },
+          { label: 'Verify Certificate', path: '/verify' },
         ],
       },
       {
@@ -61,6 +62,7 @@ function getNavSections(role) {
           { label: 'Assignments', path: '/teacher/assignments' },
           { label: 'Live Studio', path: '/teacher/live-studio' },
           { label: 'Students', path: '/teacher/students' },
+          { label: 'Verify Certificate', path: '/verify' },
         ],
       },
       {
@@ -98,6 +100,7 @@ function getNavSections(role) {
         { label: 'Courses', path: '/admin/courses' },
         { label: 'Jobs & Internships', path: '/admin/jobs' },
         { label: 'Certificates', path: '/admin/certificates' },
+        { label: 'Verify Certificate', path: '/verify' },
       ],
     },
     {

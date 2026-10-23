@@ -1361,3 +1361,198 @@ footer .brand-text .brand-name-accent {
   }
 }
 
+
+
+/* Certificate Verification Page */
+.verify-certificate-page {
+  padding: 120px 24px 80px;
+  min-height: 80vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.verify-container {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.verify-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.verify-shield-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.1);
+  margin-bottom: 16px;
+}
+
+.verify-header h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.verify-subtitle {
+  color: var(--muted, #64748b);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.verify-form {
+  margin-bottom: 24px;
+}
+
+.verify-input-group {
+  display: flex;
+  gap: 8px;
+}
+
+.verify-input {
+  flex: 1;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  background: var(--card-bg, #ffffff);
+  color: var(--text-color, #0f172a);
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.verify-input:focus {
+  border-color: var(--accent, #6366f1);
+}
+
+.verify-btn {
+  padding: 12px 24px;
+  background: var(--accent, #6366f1);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100px;
+}
+
+.verify-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.verify-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #ffffff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.verify-result-card {
+  padding: 24px;
+  border-radius: 12px;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  text-align: center;
+}
+
+.verify-error {
+  border-color: #fca5a5;
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.verify-error h3 {
+  color: #dc2626;
+  margin: 12px 0 6px;
+}
+
+.verify-error p {
+  color: var(--muted, #64748b);
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.verify-success {
+  border-color: #86efac;
+}
+
+.verify-badge {
+  display: inline-block;
+  padding: 4px 16px;
+  border-radius: 20px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 10px 0;
+}
+
+.verify-success h3 {
+  margin: 6px 0;
+  font-size: 1.3rem;
+}
+
+.verify-issued-text {
+  color: var(--muted, #64748b);
+  font-size: 0.9rem;
+  margin-bottom: 20px;
+}
+
+.verify-details {
+  border-top: 1px solid var(--border-color, #e2e8f0);
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  padding: 12px 0;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.verify-detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 0.95rem;
+}
+
+.verify-detail-label {
+  color: var(--muted, #64748b);
+}
+
+.verify-detail-value {
+  font-weight: 600;
+}
+
+.verify-detail-value.mono {
+  font-family: monospace;
+}
+
+.verify-view-pdf-btn {
+  display: inline-block;
+  padding: 10px 20px;
+  background: var(--accent, #6366f1);
+  color: #ffffff;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.95rem;
+  transition: opacity 0.2s;
+}
+
+.verify-view-pdf-btn:hover {
+  opacity: 0.9;
+}

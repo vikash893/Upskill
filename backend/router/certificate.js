@@ -10,6 +10,7 @@ const requireRole = require("../middleware/roleMiddleware");
 const { persistFile } = require("../config/cloudinary");
 const createCertificatePdf = require("../services/certificatePdf");
 const { getPaginationParams, buildPaginationMetadata } = require("../utils/pagination");
+const processSignature = require("../utils/processSignature");
 
 const certificateRouter = express.Router();
 const signatureUpload = upload.fields([
@@ -34,6 +35,20 @@ const getSignatureUrls = async (files) => {
         throw new Error("Signatures must be image files.");
     }
 
+    // Automatically remove paper/scanner backgrounds so signatures look like authentic pen strokes
+    try {
+        const [cleanAdminBuffer, cleanTeacherBuffer] = await Promise.all([
+            processSignature(adminSignature.buffer),
+            processSignature(teacherSignature.buffer)
+        ]);
+        adminSignature.buffer = cleanAdminBuffer;
+        adminSignature.mimetype = "image/png";
+        teacherSignature.buffer = cleanTeacherBuffer;
+        teacherSignature.mimetype = "image/png";
+    } catch (procErr) {
+        console.error("Warning: signature pre-processing error, proceeding with original:", procErr.message);
+    }
+
     const [adminUrl, teacherUrl] = await Promise.all([
         persistFile(adminSignature, "uniskill/certificates/signatures"),
         persistFile(teacherSignature, "uniskill/certificates/signatures")
@@ -46,6 +61,83 @@ const getSignatureUrls = async (files) => {
 };
 
 const newCertificateId = () => `UNS-${crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase()}`;
+
+// ====================================================================
+// PUBLIC CERTIFICATE VERIFICATION (NO LOGIN REQUIRED)
+// ====================================================================
+certificateRouter.get(
+    "/certificates/verify/:certificateId",
+    async (req, res) => {
+        try {
+            const rawId = String(req.params.certificateId || "").trim();
+            if (!rawId) {
+                return res.status(400).json({ verified: false, error: "Certificate ID is required." });
+            }
+
+            // Case-insensitive exact match for certificate_id
+            const escapedId = rawId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const certificate = await Certificate.findOne({
+                certificate_id: { $regex: new RegExp(`^${escapedId}$`, "i") }
+            }).select("certificate_id student_name course_title issue_date issuance_type issued_by createdAt").lean();
+
+            if (!certificate) {
+                return res.status(404).json({
+                    verified: false,
+                    error: "Invalid certificate ID. This certificate was not found in UniSkill official registry."
+                });
+            }
+
+            return res.status(200).json({
+                verified: true,
+                certificate: {
+                    certificate_id: certificate.certificate_id,
+                    student_name: certificate.student_name,
+                    course_title: certificate.course_title,
+                    issue_date: certificate.issue_date,
+                    issuance_type: certificate.issuance_type,
+                    issued_by: certificate.issued_by,
+                    verified_at: new Date()
+                }
+            });
+        } catch (error) {
+            console.log("PUBLIC VERIFY CERTIFICATE ERROR:", error);
+            return res.status(500).json({ verified: false, error: "Internal server error verifying certificate." });
+        }
+    }
+);
+
+certificateRouter.get(
+    "/certificates/verify/:certificateId/pdf",
+    async (req, res) => {
+        try {
+            const rawId = String(req.params.certificateId || "").trim();
+            if (!rawId) {
+                return res.status(400).json({ error: "Certificate ID is required." });
+            }
+
+            const escapedId = rawId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const certificate = await Certificate.findOne({
+                certificate_id: { $regex: new RegExp(`^${escapedId}$`, "i") }
+            }).lean();
+
+            if (!certificate) {
+                return res.status(404).json({ error: "Certificate not found." });
+            }
+
+            const pdf = await createCertificatePdf(certificate);
+            const fileName = `${certificate.certificate_id}.pdf`;
+            res.set({
+                "Content-Type": "application/pdf",
+                "Content-Length": pdf.length,
+                "Content-Disposition": `inline; filename="${fileName}"`
+            });
+            return res.send(pdf);
+        } catch (error) {
+            console.log("PUBLIC DOWNLOAD CERTIFICATE ERROR:", error);
+            return res.status(500).json({ error: "Could not generate certificate PDF." });
+        }
+    }
+);
 
 certificateRouter.get(
     "/certificates/mine",
@@ -71,13 +163,15 @@ certificateRouter.get(
 certificateRouter.get(
     "/certificates/:certificateId/download",
     authMiddleware,
-    requireRole("STUDENT"),
     async (req, res) => {
         try {
-            const certificate = await Certificate.findOne({
-                _id: req.params.certificateId,
-                student_email: normalizeEmail(req.user.email)
-            }).lean();
+            // Allow admin, teacher, or the student who owns the certificate to download
+            let query = { _id: req.params.certificateId };
+            if (req.user.role === "STUDENT") {
+                query.student_email = normalizeEmail(req.user.email);
+            }
+
+            const certificate = await Certificate.findOne(query).lean();
 
             if (!certificate) {
                 return res.status(404).json({ error: "Certificate not found." });

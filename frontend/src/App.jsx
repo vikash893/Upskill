@@ -18,6 +18,7 @@ import Profile from './pages/Profile'
 import Dashboard from './pages/Dashboard'
 import Forms from './pages/Forms'
 import Announcements from './pages/Announcements'
+import VerifyCertificate from './pages/VerifyCertificate'
 
 // Student Distinct Pages
 import StudentMyCourses from './pages/student/StudentMyCourses'
@@ -71,6 +72,7 @@ function App() {
       <Route path="/login" element={<Auth initialMode="login" />} />
       <Route path="/register" element={<Auth initialMode="register" />} />
       <Route path="/auth" element={<Auth initialMode="login" />} />
+      <Route path="/verify-certificate" element={<VerifyCertificate />} />
 
       {/* Redirect legacy public routes to internal counterparts or login */}
       <Route
@@ -148,6 +150,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/announcements" element={<Announcements />} />
+        <Route path="/verify" element={<VerifyCertificate />} />
 
         {/* Student Dedicated Routes */}
         <Route

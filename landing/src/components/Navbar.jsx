@@ -12,6 +12,7 @@ export default function Navbar() {
     { label: 'Home', path: '/' },
     { label: 'Courses', path: '/courses' },
     { label: 'Our Mentors', path: '/mentors' },
+    { label: 'Verify Certificate', path: '/verify-certificate' },
     { label: 'About', path: '/about' },
     { label: 'Contact', path: '/contact' },
   ]
