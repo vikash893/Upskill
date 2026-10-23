@@ -90,11 +90,22 @@ const contactRateLimit = createRateLimit({
     customMessage: "Too many contact messages submitted. Please try again later."
 });
 
+
+// Certificate ID verification scan rate limit (prevent ID brute forcing)
+const certVerifyRateLimit = createRateLimit({
+    keyPrefix: "rl:cert_verify",
+    points: 60,
+    duration: 60,
+    keyGenerator: (req) => req.ip || req.socket.remoteAddress || "unknown",
+    customMessage: "Too many certificate verification requests. Please wait a minute."
+});
+
 module.exports = {
     createRateLimit,
     apiRateLimit,
     authRateLimit,
     paymentRateLimit,
     liveClassRateLimit,
-    contactRateLimit
+    contactRateLimit,
+    certVerifyRateLimit
 };

@@ -1,4 +1,5 @@
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+require('./utils/consoleSanitizer'); // Automatically redacts JWTs, passwords, and sensitive keys from stdout/stderr
 const express = require('express');
 const path = require('path');
 const cluster = require('node:cluster');
@@ -252,3 +253,4 @@ if (cluster.isPrimary && workerCount > 1) {
         process.exit(1);
     });
 }
+

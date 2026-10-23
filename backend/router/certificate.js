@@ -11,6 +11,8 @@ const { persistFile } = require("../config/cloudinary");
 const createCertificatePdf = require("../services/certificatePdf");
 const { getPaginationParams, buildPaginationMetadata } = require("../utils/pagination");
 const processSignature = require("../utils/processSignature");
+const { certVerifyRateLimit } = require("../middleware/rateLimit");
+const { getCache, setCache } = require("../config/redis");
 
 const certificateRouter = express.Router();
 const signatureUpload = upload.fields([
@@ -37,6 +39,8 @@ const getSignatureUrls = async (files) => {
 
     // Automatically remove paper/scanner backgrounds so signatures look like authentic pen strokes
     try {
+                // Invalidate verification caches for newly issued certificates
+        // Process signatures
         const [cleanAdminBuffer, cleanTeacherBuffer] = await Promise.all([
             processSignature(adminSignature.buffer),
             processSignature(teacherSignature.buffer)
@@ -67,11 +71,19 @@ const newCertificateId = () => `UNS-${crypto.randomUUID().replace(/-/g, "").slic
 // ====================================================================
 certificateRouter.get(
     "/certificates/verify/:certificateId",
+    certVerifyRateLimit,
     async (req, res) => {
         try {
             const rawId = String(req.params.certificateId || "").trim();
             if (!rawId) {
                 return res.status(400).json({ verified: false, error: "Certificate ID is required." });
+            }
+
+            // Fast Redis cache check (TTL: 1 hour)
+            const cacheKey = `cert:verify:${rawId.toUpperCase()}`;
+            const cachedResult = await getCache(cacheKey);
+            if (cachedResult) {
+                return res.status(200).json(cachedResult);
             }
 
             // Case-insensitive exact match for certificate_id
@@ -87,7 +99,7 @@ certificateRouter.get(
                 });
             }
 
-            return res.status(200).json({
+            const payload = {
                 verified: true,
                 certificate: {
                     certificate_id: certificate.certificate_id,
@@ -98,7 +110,9 @@ certificateRouter.get(
                     issued_by: certificate.issued_by,
                     verified_at: new Date()
                 }
-            });
+            };
+            await setCache(cacheKey, payload, 3600);
+            return res.status(200).json(payload);
         } catch (error) {
             console.log("PUBLIC VERIFY CERTIFICATE ERROR:", error);
             return res.status(500).json({ verified: false, error: "Internal server error verifying certificate." });
@@ -108,6 +122,7 @@ certificateRouter.get(
 
 certificateRouter.get(
     "/certificates/verify/:certificateId/pdf",
+    certVerifyRateLimit,
     async (req, res) => {
         try {
             const rawId = String(req.params.certificateId || "").trim();
@@ -320,6 +335,8 @@ certificateRouter.post(
                 ...signatures
             });
 
+                        await delCache("cert:verify:" + certificate.certificate_id.toUpperCase());
+                        await delCache("cert:verify:" + certificate.certificate_id.toUpperCase());
             return res.status(201).json({
                 message: "Certificate issued successfully.",
                 certificate
@@ -411,3 +428,6 @@ certificateRouter.post(
 );
 
 module.exports = certificateRouter;
+
+
+
