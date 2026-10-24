@@ -12,6 +12,7 @@ const { persistFile, isConfigured } = require("../config/cloudinary");
 const authMiddleware = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
 const { getPaginationParams, buildPaginationMetadata } = require("../utils/pagination");
+const { emitRealtimeAnnouncement } = require("../services/realtimeService");
 
 const announcementRouter = express.Router();
 
@@ -175,6 +176,11 @@ announcementRouter.post("/announcements", authMiddleware, requireRole("ADMIN", "
             author_role: req.user.role
         });
 
+                try {
+            emitRealtimeAnnouncement(announcement);
+        } catch (emitErr) {
+            console.error("Announcement realtime broadcast error:", emitErr.message);
+        }
         return res.status(201).json({ message: "Announcement published.", announcement });
     } catch (error) {
         console.log("CREATE ANNOUNCEMENT ERROR:", error);

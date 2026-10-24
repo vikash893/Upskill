@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const Logger = require("../models/logger");
 const { publishKafkaEvent, getAuditLogTopic } = require("../config/kafka");
+const { emitRealtimeAuditLog } = require("../services/realtimeService");
 
 // In-memory batch buffer for high-throughput non-blocking request logging
 const logBuffer = [];
@@ -93,7 +94,10 @@ const logger = (req, res, next) => {
             isActive: false
         };
 
-        publishKafkaEvent(getAuditLogTopic(), logEntry.email, logEntry).catch(() => {});
+                publishKafkaEvent(getAuditLogTopic(), logEntry.email, logEntry).catch(() => {});
+        try {
+            emitRealtimeAuditLog(logEntry);
+        } catch {}
         logBuffer.push(logEntry);
         if (logBuffer.length >= BATCH_SIZE) {
             flushLogBuffer().catch(() => {});

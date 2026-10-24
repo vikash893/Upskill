@@ -122,33 +122,28 @@ certificateRouter.get(
 
 certificateRouter.get(
     "/certificates/verify/:certificateId/pdf",
-    certVerifyRateLimit,
+    authMiddleware,
     async (req, res) => {
+        // Prevent public downloading of other people's certificates
         try {
             const rawId = String(req.params.certificateId || "").trim();
-            if (!rawId) {
-                return res.status(400).json({ error: "Certificate ID is required." });
-            }
-
+            if (!rawId) return res.status(400).json({ error: "Certificate ID is required." });
             const escapedId = rawId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
             const certificate = await Certificate.findOne({
                 certificate_id: { $regex: new RegExp(`^${escapedId}$`, "i") }
             }).lean();
-
-            if (!certificate) {
-                return res.status(404).json({ error: "Certificate not found." });
+            if (!certificate) return res.status(404).json({ error: "Certificate not found." });
+            if (req.user.role === "STUDENT" && certificate.student_email.toLowerCase() !== req.user.email.toLowerCase()) {
+                return res.status(403).json({ error: "Unauthorized: You can only view your own certificate." });
             }
-
             const pdf = await createCertificatePdf(certificate);
-            const fileName = `${certificate.certificate_id}.pdf`;
             res.set({
                 "Content-Type": "application/pdf",
                 "Content-Length": pdf.length,
-                "Content-Disposition": `inline; filename="${fileName}"`
+                "Content-Disposition": `inline; filename="${certificate.certificate_id}.pdf"`
             });
             return res.send(pdf);
         } catch (error) {
-            console.log("PUBLIC DOWNLOAD CERTIFICATE ERROR:", error);
             return res.status(500).json({ error: "Could not generate certificate PDF." });
         }
     }

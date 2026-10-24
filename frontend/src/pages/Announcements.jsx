@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { mediaUrl } from '../utils/mediaUrl'
 import Skeleton from '../components/Skeleton'
 import Pagination from '../components/Pagination'
+import { getRealtimeSocket } from '../api/realtime'
 
 const audienceNames = { students: 'All students', teachers: 'All teachers', everyone: 'Everyone' }
 
@@ -77,6 +78,29 @@ export default function Announcements() {
   useEffect(() => {
     loadAnnouncements()
   }, [page, limit])
+
+  // Real-time announcements update via WebSockets
+  useEffect(() => {
+    const socket = getRealtimeSocket()
+    if (!socket) return
+
+    const handleNewAnnouncement = (newAnnouncement) => {
+      setAnnouncements((prev) => {
+        // Prevent duplicates
+        if (prev.some((a) => a._id === newAnnouncement._id)) return prev
+        return [newAnnouncement, ...prev]
+      })
+      setPagination((prev) => ({
+        ...prev,
+        totalRecords: (prev.totalRecords || 0) + 1
+      }))
+    }
+
+    socket.on('announcement:new', handleNewAnnouncement)
+    return () => {
+      socket.off('announcement:new', handleNewAnnouncement)
+    }
+  }, [])
 
   const handleImageSelect = (e) => {
     const file = e.target.files?.[0]

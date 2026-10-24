@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
+import { getRealtimeSocket } from '../api/realtime'
 
 export default function AnnouncementBell() {
   const { session } = useAuth()
@@ -18,6 +19,13 @@ export default function AnnouncementBell() {
       .catch(() => {})
 
     loadUnread()
+    const socket = getRealtimeSocket()
+    if (socket) {
+      socket.on('announcement:new', () => {
+        if (active) setUnreadCount((prev) => prev + 1)
+      })
+    }
+
     const timer = window.setInterval(loadUnread, 30000)
     return () => {
       active = false

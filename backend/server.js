@@ -155,6 +155,7 @@ const http = require('node:http');
 const { Server } = require('socket.io');
 const scalableLiveClassRouter = require('./src/modules/live-class/routes/liveClass.routes');
 const registerLiveClassSocketHandlers = require('./src/modules/live-class/sockets/liveClass.socket');
+const { registerRealtimeSocketHandlers, setGlobalSocketIo } = require('./services/realtimeService');
 
 app.use('/api', adminDashboardRouter);
 app.use('/api', formsRouter);
@@ -177,7 +178,9 @@ async function startWorker() {
     const io = new Server(server, {
         cors: { origin: '*', methods: ['GET', 'POST'] }
     });
+        setGlobalSocketIo(io);
     registerLiveClassSocketHandlers(io);
+    registerRealtimeSocketHandlers(io);
 
     server.listen(port, () => {
         console.log(`UniSkill API worker ${process.pid} listening on port ${port} with Scalable Live Classroom system.`);
@@ -253,4 +256,5 @@ if (cluster.isPrimary && workerCount > 1) {
         process.exit(1);
     });
 }
+
 

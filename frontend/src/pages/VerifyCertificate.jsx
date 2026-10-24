@@ -51,27 +51,6 @@ export default function VerifyCertificate() {
     handleVerify()
   }
 
-  const [pdfLoading, setPdfLoading] = useState(false)
-
-  async function handleViewPdf(e) {
-    e.preventDefault()
-    if (!result?.certificate_id || pdfLoading) return
-
-    setPdfLoading(true)
-    try {
-      const res = await fetch(`${API_URL}/certificates/verify/${encodeURIComponent(result.certificate_id)}/pdf`)
-      if (!res.ok) throw new Error('Could not download certificate PDF')
-
-      const blob = await res.blob()
-      const blobUrl = URL.createObjectURL(blob)
-      window.open(blobUrl, '_blank')
-    } catch (err) {
-      alert('Failed to load certificate PDF. Please try again.')
-    } finally {
-      setPdfLoading(false)
-    }
-  }
-
   function formatDate(dateStr) {
     if (!dateStr) return '—'
     try {
@@ -163,17 +142,6 @@ export default function VerifyCertificate() {
             ))}
           </div>
 
-          <div style={{ textAlign: 'center', marginTop: 20 }}>
-            <button
-              type="button"
-              onClick={handleViewPdf}
-              disabled={pdfLoading}
-              className="primary-button"
-              style={{ display: 'inline-block', border: 'none', cursor: pdfLoading ? 'wait' : 'pointer' }}
-            >
-              {pdfLoading ? 'Loading Certificate PDF...' : 'View Certificate PDF ↗'}
-            </button>
-          </div>
         </div>
       )}
     </div>

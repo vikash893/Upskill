@@ -3,6 +3,7 @@ import { request } from '../api/request'
 import { useAuth } from '../context/AuthContext'
 import Skeleton from '../components/Skeleton'
 import Pagination from '../components/Pagination'
+import { getRealtimeSocket } from '../api/realtime'
 
 export default function AdminLogs() {
   const { session } = useAuth()
@@ -52,6 +53,28 @@ export default function AdminLogs() {
 
   useEffect(() => {
     fetchLogs()
+  }, [page, limit, search])
+
+  // Real-time audit logs stream via WebSockets
+  useEffect(() => {
+    const socket = getRealtimeSocket()
+    if (!socket) return
+
+    const handleNewLog = (newLog) => {
+      // If user is currently on page 1 and no search filter is active or filter matches
+      if (page === 1) {
+        setLogs((prev) => [newLog, ...prev.slice(0, limit - 1)])
+        setPagination((prev) => ({
+          ...prev,
+          totalRecords: (prev.totalRecords || 0) + 1
+        }))
+      }
+    }
+
+    socket.on('audit:new_log', handleNewLog)
+    return () => {
+      socket.off('audit:new_log', handleNewLog)
+    }
   }, [page, limit, search])
 
   const handleClear = async () => {
@@ -181,3 +204,4 @@ export default function AdminLogs() {
     </main>
   )
 }
+
